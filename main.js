@@ -29,13 +29,14 @@ class Main {
         this.draw()
     }
 
-    projectPoints(points, f, w, h) {
+    projectObjects(objects, f, w, h) {
         const fovRad = fov * Math.PI/180
         const f = w / (2 * Math.tan(fovRad/2))
+        for (const obj of objects) {
 
-        for (const point of points) {
-            this.projectPoint(point.location, f, w, h)
-        }
+            for (const point of obj) {
+                 this.projectPoint(point.location, f, w, h)
+            }
     }
 
     projectPoint({x, y, z}, f, w, h) {
