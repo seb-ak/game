@@ -1,10 +1,30 @@
 import "helper.js";
+import { level1 } from "./levels";
 
 class object {
-    constructor(location) {
+    constructor() {
         this.location = location
-        this.collision = true;
+        this.collision = {
+            up:true,
+            down:true,
+            left:true,
+            right:true,
+        };
         this.size = new vec3(1,1,1);
+    }
+}
+
+class levelTile extends object {
+    constructor(location, type, adjacent={up:false,down:false,left:false,right:false}) {
+        this.location = location
+        this.adjacent = {
+            up:false,
+            down:false,
+            left:false,
+            right:false,
+        }
+        this.type = type
+        this.texture = "none"
     }
 }
 
@@ -20,6 +40,31 @@ class Main {
 
         setInterval(this.update.bind(this), 20);
 
+        this.level = {
+            main:[],
+            second:[]
+        }
+
+    }
+
+    genrateLevel(level, main="main") {
+        const types = {"X":"wall", " ":"air"}
+
+        for (let y=level.length; y > 0; y--) {
+            for (let x=0; i < level[x].length; x++) {
+
+                this.level[main].push(new levelTile(
+                    new vec3(x,y),
+                    {
+                        up:   level[y-1][x] == "X",
+                        down: level[y+1][x] == "X",
+                        left: level[y][x-1] == "X",
+                        right:level[y][x+1] == "X"
+                    }
+                ))
+
+            }
+        }
     }
 
     update() {
@@ -35,8 +80,9 @@ class Main {
         for (const obj of objects) {
 
             for (const point of obj) {
-                 this.projectPoint(point.location, f, w, h)
+                this.projectPoint(point.location, f, w, h)
             }
+        }
     }
 
     projectPoint({x, y, z}, f, w, h) {
