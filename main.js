@@ -2,7 +2,7 @@ logError("aaa")
 
 
 import "./helper.js";
-import { level1 } from "./levels";
+import { level1 } from "./levels.js";
 
 class gameObject {
     constructor(location) {
