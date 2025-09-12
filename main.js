@@ -12,6 +12,17 @@ class object {
         };
         this.size = new vec3(1,1,1);
     }
+    
+    getPoint() {
+        const center = location.add(this.size.mult(-0.5))
+        return {
+            center: center
+            tl: this.location.add(new vec3(0, this.size.y, 0))
+            bl: this.location
+            tr: this.location.add(new vec3(this.size.x, this.size.y, 0))
+            br: this.location.add(new vec3(this.size.x, 0, 0))
+        }
+    }
 }
 
 class levelTile extends object {
