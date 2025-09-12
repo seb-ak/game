@@ -7,14 +7,18 @@
   <title>Game</title>
   <style>
     body {background-color: black;}
-    #gameCanvas {width: calc(320px * 2); height: calc(240px * 2);}
+    #gameCanvas {width: calc(320px * 2); height: calc(240px * 2); background-color: red;}
+    #console {color: white;}
   </style>
 
 </head>
 <body>
 
-    <canvas id="gameCanvas" width="320" height="240"></canvas>
-    <script type="module" src="main.js"></script>
+  <canvas id="gameCanvas" width="320" height="240"></canvas>
+  <script type="module" src="main.js"></script>
 
+  <p id="console">
+    console:
+  </p>
 </body>
 </html>

@@ -1,8 +1,11 @@
+logError("aaa")
+
+
 import "helper.js";
 import { level1 } from "./levels";
 
 class gameObject {
-    constructor() {
+    constructor(location) {
         this.location = location
         this.collision = {
             up:true,
@@ -27,7 +30,8 @@ class gameObject {
 
 class levelTile extends gameObject {
     constructor(location, type, adjacent={up:false,down:false,left:false,right:false}) {
-        this.location = location;
+        super(location);
+
         this.adjacent = adjacent;
         this.type = type;
         this.texture = "none";
@@ -98,13 +102,15 @@ class Main {
         }
 
         this.t = 0
+
+        logError("started");
     }
 
     genrateLevel(level, main="main") {
         const types = {"X":"wall", " ":"air"}
 
         for (let y=level.length; y > 0; y--) {
-            for (let x=0; i < level[x].length; x++) {
+            for (let x=0; x < level[x].length; x++) {
 
                 this.level[main].push(new levelTile(
                     new vec3(x,y),
@@ -122,10 +128,12 @@ class Main {
     }
 
     update() {
-        this.t++
-        this.camera.x = Math.sin(t);
-        this.camera.y = Math.cos(t);
-        this.draw();
+        try {
+            this.t++
+            this.camera.x = Math.sin(this.t);
+            this.camera.y = Math.cos(this.t);
+            this.draw();
+        } catch (e) {logError(e);}
     }
 
     projectObjects(objects, fov=this.camera.fov, w=this.screen.width, h=this.screen.height) {
@@ -192,7 +200,10 @@ class Main {
     }
 }
 
-
+function logError(text) {
+    const p = document.getElementById("console");
+    p.textContent += `\n${text}`
+}
 
 const main = new Main();
 main.genrateLevel(level1);
