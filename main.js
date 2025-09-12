@@ -1,7 +1,7 @@
 logError("aaa")
 
 
-import "helper.js";
+import "./helper.js";
 import { level1 } from "./levels";
 
 class gameObject {
