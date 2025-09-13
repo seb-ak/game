@@ -1,7 +1,4 @@
-logError("aaa")
-
-
-import "/helper.js";
+import { vec3 } from "/helper.js";
 import { level1 } from "/levels.js";
 
 class gameObject {
@@ -17,7 +14,7 @@ class gameObject {
     }
     
     getPoint() {
-        const center = location.add(this.size.mult(-0.5));
+        const center = this.location.add(this.size.mult(-0.5));
         return {
             center: center,
             tl: this.location.add(new vec3(0,           this.size.y, 0)),
@@ -40,40 +37,42 @@ class levelTile extends gameObject {
     getFaceVertecies(face) {
         switch(face) {
             case "front":
-            return [
-                this.getPoint().tl,
-                this.getPoint().tr,
-                this.getPoint().br,
-                this.getPoint().bl,
-            ]
+                return [
+                    this.getPoint().tl,
+                    this.getPoint().tr,
+                    this.getPoint().br,
+                    this.getPoint().bl,
+                ];
             case "left":
-            return [
-                this.getPoint().tl,
-                this.getPoint().tl.add(0,0,1),
-                this.getPoint().bl.add(0,0,1),
-                this.getPoint().bl,
-            ]
+                return [
+                    this.getPoint().tl,
+                    this.getPoint().tl.add(new vec3(0,0,1)),
+                    this.getPoint().bl.add(new vec3(0,0,1)),
+                    this.getPoint().bl,
+                ];
             case "right":
-            return [
-                this.getPoint().tr,
-                this.getPoint().tr.add(0,0,1),
-                this.getPoint().br.add(0,0,1),
-                this.getPoint().br,
-            ]
-            case "top":
-            return [
-                this.getPoint().tl,
-                this.getPoint().tl.add(0,0,1),
-                this.getPoint().tr.add(0,0,1),
-                this.getPoint().tr,
-            ]
-            case "bottom":
-            return [
-                this.getPoint().bl,
-                this.getPoint().bl.add(0,0,1),
-                this.getPoint().br.add(0,0,1),
-                this.getPoint().br,
-            ]
+                return [
+                    this.getPoint().tr,
+                    this.getPoint().tr.add(new vec3(0,0,1)),
+                    this.getPoint().br.add(new vec3(0,0,1)),
+                    this.getPoint().br,
+                ];
+            case "up":
+                return [
+                    this.getPoint().tl,
+                    this.getPoint().tl.add(new vec3(0,0,1)),
+                    this.getPoint().tr.add(new vec3(0,0,1)),
+                    this.getPoint().tr,
+                ];
+            case "down":
+                return [
+                    this.getPoint().bl,
+                    this.getPoint().bl.add(new vec3(0,0,1)),
+                    this.getPoint().br.add(new vec3(0,0,1)),
+                    this.getPoint().br,
+                ];
+            default:
+                return [];
         }
     }
 }
@@ -88,38 +87,39 @@ class Main {
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
 
-        setInterval(this.update.bind(this), 20);
-
         this.level = {
             main:[],
             second:[]
         }
 
         this.camera = {
-            x: 0,
-            y: 0,
+            location: new vec3(0,0,-8),
             fov: 90,
         }
 
         this.t = 0
 
         logError("started");
+        setInterval(this.update.bind(this), 20);
+        // this.update()
+
     }
 
-    genrateLevel(level, main="main") {
+    generateLevel(level, main="main") {
         const types = {"X":"wall", " ":"air"}
 
-        for (let y=level.length; y > 0; y--) {
-            for (let x=0; x < level[x].length; x++) {
+        for (let y=level.length-1; y >= 0; y--) {
+            for (let x=0; x < level[y].length; x++) {
 
                 this.level[main].push(new levelTile(
-                    new vec3(x,y),
-                    types[level[x][y]],
+                    new vec3(x,y,0),
+                    types[level[y][x]],
                     {
-                        up:   level[y-1][x] == "X",
-                        down: level[y+1][x] == "X",
-                        left: level[y][x-1] == "X",
-                        right:level[y][x+1] == "X"
+                        up:    y > 0                   ? level[y-1][x] === "X" : false,
+                        down:  y < level.length - 1    ? level[y+1][x] === "X" : false,
+                        left:  x > 0                   ? level[y][x-1] === "X" : false,
+                        right: x < level[y].length - 1 ? level[y][x+1] === "X" : false,
+                        front: true,
                     }
                 ))
 
@@ -128,12 +128,12 @@ class Main {
     }
 
     update() {
-        try {
+        // try {
             this.t++
-            this.camera.x = Math.sin(this.t);
-            this.camera.y = Math.cos(this.t);
+            this.camera.location.x = 15 + Math.sin(this.t/50)*10;
+            this.camera.location.y = 5 + Math.cos(this.t/50);
             this.draw();
-        } catch (e) {logError(e);}
+        // } catch (e) {logError(e);}
     }
 
     projectObjects(objects, fov=this.camera.fov, w=this.screen.width, h=this.screen.height) {
@@ -143,17 +143,15 @@ class Main {
         const projectedObjects = [];
         for (const obj of objects) {
 
-            for (const {face, adjacent} of Object.keys(objects.adjacent)) {
-                console.log(face, adjacent);//DEBUG
+            for (const [face, adjacent] of Object.entries(obj.adjacent)) {
                 if (adjacent) continue;
                 
                 const vertices = obj.getFaceVertecies(face);
                 const projectedVertices = [];
                 
                 for (const point of vertices) {
-                    point.x - this.camera.x;
-                    point.y - this.camera.y;
-                    face.push(this.projectPoint(point, f, w, h));
+                    const translatedPoint = point.sub(this.camera.location)
+                    projectedVertices.push(this.projectPoint(translatedPoint, f, w, h));
                 }
                 projectedObjects.push(projectedVertices);
             }
@@ -176,7 +174,9 @@ class Main {
 
     drawLevel(level) {
         const projectedObjects = this.projectObjects(level);
+
         for (const object of projectedObjects) {
+
             this.drawShape(object);
         }
     }
@@ -185,7 +185,7 @@ class Main {
         this.ctx.beginPath();
 
         this.ctx.moveTo(points[0].x, points[0].y);
-        for (const i=1; i < points.length; i++) {
+        for (let i=1; i < points.length; i++) {
             this.ctx.lineTo(points[i].x, points[i].y);
         }
 
@@ -206,4 +206,4 @@ function logError(text) {
 }
 
 const main = new Main();
-main.genrateLevel(level1);
+main.generateLevel(level1);
