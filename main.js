@@ -1,6 +1,86 @@
-import { vec3 } from "/helper.js";
-import { level1 } from "/levels.js";
+// import { vec3 } from "/helper.js";
+// import { level1 } from "/levels.js";
+// moved the imports into this single file to stop the: Cross-Origin Request Blocked error
 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//----------------------------------------- helper.js -----------------------------------------//
+////////////////////////////////////////////////////////////////////////////////////////////////
+function logError(text) {
+    const p = document.createElement("p");
+    p.textContent = text;
+    document.getElementById("console").appendChild(p);
+}
+
+class vec3 {
+    constructor(x=NaN, y=NaN, z=NaN) {
+        this.x = x
+        this.y = y
+        this.z = z
+    }
+
+    add(vec) {
+        return new vec3(
+            this.x + vec.x,
+            this.y + vec.y,
+            this.z + vec.z
+        )
+    }
+
+    sub(vec) {
+        return new vec3(
+            this.x - vec.x,
+            this.y - vec.y,
+            this.z - vec.z
+        )
+    }
+
+    mult(n) {
+        return new vec3(
+            this.x * n,
+            this.y * n,
+            this.z * n
+        )
+    }
+
+    div(n) {
+        return new vec3(
+            this.x / n,
+            this.y / n,
+            this.z / n
+        )
+    }
+
+    length() {
+        return Math.sqrt(
+            Math.pow(this.x, 2) +
+            Math.pow(this.y, 2) +
+            Math.pow(this.z, 2)
+        )
+    }
+
+    normalise() {
+        const len = this.length()
+        return this.div(len)
+    }
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//----------------------------------------- levels.js -----------------------------------------//
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+const level1 = [
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XX     XXXXX          XXXXXXXXXXXXXXXXXXXX",
+"XXXX                            XXXXXXXXXX",
+"XXXXXXXXXXXXXXX         XXXXX      XXXXXXX",
+"XXXX               XXXXXXXXXXXX    XXXXXXX",
+"XXXX  s         XXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//------------------------------------------ main.js ------------------------------------------//
+////////////////////////////////////////////////////////////////////////////////////////////////
 class gameObject {
     constructor(location) {
         this.location = location
@@ -111,15 +191,24 @@ class Main {
         for (let y=level.length-1; y >= 0; y--) {
             for (let x=0; x < level[y].length; x++) {
 
+                // const up   = y+1 < level.length?    false : level[y+1][x] === "X";
+                // const down = y-1 > 0?               false : level[y-1][x] === "X";
+                // const left = x-1 < level[y].length? false : level[y][x-1] === "X";
+                // const right= x+1 > 0?               false : level[y][x+1] === "X";
+
+                let up=false; let down=false; let left=false; let right=false;
+
+                try { up = level[y+1][x] !== "X";    } catch(e) {}
+                try { down = level[y-1][x] !== "X";  } catch(e) {}
+                try { left = level[y][x-1] !== "X";  } catch(e) {}
+                try { right = level[y][x+1] !== "X"; } catch(e) {}
+
                 this.level[main].push(new levelTile(
                     new vec3(x,y,0),
                     types[level[y][x]],
                     {
-                        up:    y > 0                   ? level[y-1][x] === "X" : false,
-                        down:  y < level.length - 1    ? level[y+1][x] === "X" : false,
-                        left:  x > 0                   ? level[y][x-1] === "X" : false,
-                        right: x < level[y].length - 1 ? level[y][x+1] === "X" : false,
-                        front: true,
+                        up, down, left, right,
+                        front: types[level[y][x]] === "wall",
                     }
                 ))
 
@@ -128,12 +217,12 @@ class Main {
     }
 
     update() {
-        // try {
+        try {
             this.t++
-            this.camera.location.x = 15 + Math.sin(this.t/50)*10;
-            this.camera.location.y = 5 + Math.cos(this.t/50);
+            this.camera.location.x = 20 + Math.sin(this.t/60)*15;
+            this.camera.location.y = 5 + Math.cos(this.t/50)*3;
             this.draw();
-        // } catch (e) {logError(e);}
+        } catch (e) {logError(e);}
     }
 
     projectObjects(objects, fov=this.camera.fov, w=this.screen.width, h=this.screen.height) {
@@ -150,8 +239,10 @@ class Main {
                 const projectedVertices = [];
                 
                 for (const point of vertices) {
-                    const translatedPoint = point.sub(this.camera.location)
-                    projectedVertices.push(this.projectPoint(translatedPoint, f, w, h));
+                    const translatedPoint = point.sub(this.camera.location);
+                    const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
+                    projectedPoint.face = face;
+                    projectedVertices.push(projectedPoint);
                 }
                 projectedObjects.push(projectedVertices);
             }
@@ -175,13 +266,17 @@ class Main {
     drawLevel(level) {
         const projectedObjects = this.projectObjects(level);
 
-        for (const object of projectedObjects) {
-
+        for (const object of projectedObjects) { // draw not front faces first
+            if (object[0].face==="front") continue; 
             this.drawShape(object);
         }
+        // for (const object of projectedObjects) { // front faces drawn last
+        //     if (object[0].face!=="front") continue;
+        //     this.drawShape(object);
+        // }
     }
 
-    drawShape(points, fillColour="red", outlineColour="green", textureId=NaN) {
+    drawShape(points, fillColour="#005000", outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
         this.ctx.moveTo(points[0].x, points[0].y);
@@ -198,11 +293,6 @@ class Main {
         this.ctx.lineWidth = 1;
         this.ctx.stroke();
     }
-}
-
-function logError(text) {
-    const p = document.getElementById("console");
-    p.textContent += `\n${text}`
 }
 
 const main = new Main();

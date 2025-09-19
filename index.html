@@ -7,7 +7,14 @@
   <title>Game</title>
   <style>
     body {background-color: black;}
-    #gameCanvas {width: calc(320px * 1); height: calc(240px * 1); background-color: red;}
+    #gameCanvas {
+      /* width: calc(320px * 2); 
+      height: calc(240px * 2);  */
+      width: 80vw;
+      image-rendering: pixelated;
+      background-color: #111111;
+      padding: 10px;
+    }
     #console {color: white;}
   </style>
 
@@ -15,11 +22,11 @@
 <body>
 
   <canvas id="gameCanvas" width="320" height="240"></canvas>
-  <script type="module" src="main.js"></script>
-
-  <p id="console">
-    console:
-  </p>
-
+  
+  <div id="console">
+    <p>console:</p>
+  </div>
+  
+  <script src="main.js"></script>
 </body>
 </html>
