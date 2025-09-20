@@ -69,11 +69,11 @@ class vec3 {
 
 const level1 = [
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XX     XXXXX          XXXXXXXXXXXXXXXXXXXX",
-"XXXX                            XXXXXXXXXX",
-"XXXXXXXXXXXXXXX         XXXXX      XXXXXXX",
-"XXXX               XXXXXXXXXXXX    XXXXXXX",
+"XX     XXXXXXXXXXXX                      X",
+"XX          X         XXXXXXXXXXXX       X",
+"XXXX                 X          XXXXX   XX",
+"XXXXXXXXXXXXXXX         XXXXX      XXXX XX",
+"XXXX     XXX       XXXXXXXXXXXX    XXXX XX",
 "XXXX  s         XXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 ]
@@ -106,7 +106,7 @@ class gameObject {
 }
 
 class levelTile extends gameObject {
-    constructor(location, type, adjacent={up:false,down:false,left:false,right:false}) {
+    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}) {
         super(location);
 
         this.adjacent = adjacent;
@@ -173,7 +173,7 @@ class Main {
         }
 
         this.camera = {
-            location: new vec3(0,0,-8),
+            location: new vec3(0,4,-8),
             fov: 90,
         }
 
@@ -185,33 +185,28 @@ class Main {
 
     }
 
+    // adds objects to the level from the 2d array
     generateLevel(level, main="main") {
         const types = {"X":"wall", " ":"air"}
+        for (let y = level.length - 1; y >= 0; y--) {
+            for (let x = 0; x < level[y].length; x++) {
+                const type = types[level[y][x]] || "air";
 
-        for (let y=level.length-1; y >= 0; y--) {
-            for (let x=0; x < level[y].length; x++) {
+                if (type !== "wall") continue;
 
-                // const up   = y+1 < level.length?    false : level[y+1][x] === "X";
-                // const down = y-1 > 0?               false : level[y-1][x] === "X";
-                // const left = x-1 < level[y].length? false : level[y][x-1] === "X";
-                // const right= x+1 > 0?               false : level[y][x+1] === "X";
-
-                let up=false; let down=false; let left=false; let right=false;
-
-                try { up = level[y+1][x] !== "X";    } catch(e) {}
-                try { down = level[y-1][x] !== "X";  } catch(e) {}
-                try { left = level[y][x-1] !== "X";  } catch(e) {}
-                try { right = level[y][x+1] !== "X"; } catch(e) {}
+                const up =    (y + 1 < level.length)    ? level[y + 1][x] === "X" : false;
+                const down =  (y - 1 >= 0)              ? level[y - 1][x] === "X" : false;
+                const left =  (x - 1 >= 0)              ? level[y][x - 1] === "X" : false;
+                const right = (x + 1 < level[y].length) ? level[y][x + 1] === "X" : false;
 
                 this.level[main].push(new levelTile(
-                    new vec3(x,y,0),
-                    types[level[y][x]],
+                    new vec3(x, y, 0),
+                    type,
                     {
                         up, down, left, right,
-                        front: types[level[y][x]] === "wall",
+                        front: false,
                     }
-                ))
-
+                ));
             }
         }
     }
@@ -220,7 +215,7 @@ class Main {
         try {
             this.t++
             this.camera.location.x = 20 + Math.sin(this.t/60)*15;
-            this.camera.location.y = 5 + Math.cos(this.t/50)*3;
+            // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
             this.draw();
         } catch (e) {logError(e);}
     }
@@ -246,6 +241,7 @@ class Main {
                 }
                 projectedObjects.push(projectedVertices);
             }
+
         }
         return projectedObjects
     }
@@ -257,7 +253,7 @@ class Main {
     }
 
     draw() {
-        this.ctx.fillStyle = "#003b3bff";
+        this.ctx.fillStyle = "#003b1dff";
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
         this.drawLevel(this.level.main);
@@ -267,22 +263,27 @@ class Main {
         const projectedObjects = this.projectObjects(level);
 
         for (const object of projectedObjects) { // draw not front faces first
-            if (object[0].face==="front") continue; 
+            if (object[0].face==="front") continue;
             this.drawShape(object);
         }
-        // for (const object of projectedObjects) { // front faces drawn last
-        //     if (object[0].face!=="front") continue;
-        //     this.drawShape(object);
-        // }
+        for (const object of projectedObjects) { // front faces drawn last
+            if (object[0].face!=="front") continue;
+            this.drawShape(object);
+        }
     }
 
     drawShape(points, fillColour="#005000", outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
-        this.ctx.moveTo(points[0].x, points[0].y);
+        this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
         for (let i=1; i < points.length; i++) {
-            this.ctx.lineTo(points[i].x, points[i].y);
+            this.ctx.lineTo(Math.round(points[i].x), Math.round(points[i].y));
         }
+
+        // this.ctx.moveTo(points[0].x, points[0].y);
+        // for (let i=1; i < points.length; i++) {
+        //     this.ctx.lineTo(points[i].x, points[i].y);
+        // }
 
         this.ctx.closePath();
 
