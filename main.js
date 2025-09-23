@@ -78,6 +78,12 @@ const level1 = [
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 ]
 
+const brickTexture = [
+	"##  ",
+	"  ##",
+	"##  ",
+	"  ##",
+]
 //////////////////////////////////////////////////////////////////////////////////////////////////
 //------------------------------------------ main.js ------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +179,7 @@ class Main {
         }
 
         this.camera = {
-            location: new vec3(0,4,-8),
+            location: new vec3(0,4,-4),
             fov: 90,
         }
 
@@ -215,7 +221,7 @@ class Main {
         try {
             this.t++
             this.camera.location.x = 20 + Math.sin(this.t/60)*15;
-            // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
+            this.camera.location.y = 4 + Math.cos(this.t/120)*1;
             this.draw();
         } catch (e) {logError(e);}
     }
@@ -273,6 +279,25 @@ class Main {
     }
 
     drawShape(points, fillColour="#005000", outlineColour="#00a000", textureId=NaN) {
+		const texture = brickTexture
+		
+		const vector = points[0].sub(points[2])
+		const start = points[0]
+		
+		for (let y=0; y<4; y++) {
+			for (let x=0; x<4; x++) {
+				const v = new vec3(vector.x * x, vector.y * y, 0)
+				const subPoints = [
+					start.add(v)
+				]
+				start.add(v)
+				drawShape(subPoints, colour)
+			}
+		}
+		
+	}
+
+    drawFace(points, fillColour="#005000") {//, outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
         this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
