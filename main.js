@@ -278,20 +278,26 @@ class Main {
         }
     }
 
-    drawShape(points, fillColour="#005000", outlineColour="#00a000", textureId=NaN) {
-		const texture = brickTexture
+    drawShape(points, mainColour="#005000", secondaryColour="#00a000", textureId=NaN) {
+  const texture = brickTexture;
+  const textureSize = 4;
+
+  let ab = points[0].sub(points[1]);
+  ab = ab.mult(0.25);
+  let ad = points[0].sub(points[3]);
+  ad = ad.mult(0.25);
 		
-		const vector = points[0].sub(points[2])
-		const start = points[0]
-		
-		for (let y=0; y<4; y++) {
-			for (let x=0; x<4; x++) {
-				const v = new vec3(vector.x * x, vector.y * y, 0)
-				const subPoints = [
-					start.add(v)
-				]
-				start.add(v)
-				drawShape(subPoints, colour)
+		for (let y=0; y<textureSize; y++) {
+			for (let x=0; x<textureSize; x++) {
+				const a = points[0].add(ab.mult(y/textueSize))
+      const subPoints = [
+        a,
+        a.add(ab),
+        a.add(ab).add(ad),
+        a.add(ad),
+      ]
+      const colour = texture[y][x]==="#" ? mainColour : secondaryColour
+				drawShape(subPoints, colour);
 			}
 		}
 		
