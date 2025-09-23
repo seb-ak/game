@@ -255,7 +255,7 @@ class Main {
     projectPoint({x, y, z}, f, w, h) {
         let px = (x / z) * f + w/2;
         let py = (y / z) * f + h/2;
-        return { x: px, y: py };
+        return new vec3(px, py, 0)
     }
 
     draw() {
