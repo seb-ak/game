@@ -289,7 +289,7 @@ class Main {
 		
 		for (let y=0; y<textureSize; y++) {
 			for (let x=0; x<textureSize; x++) {
-				const a = points[0].add(ab.mult(y/textueSize))
+				const a = points[0].add(ab.mult(y/textureSize)).add(ad.mult(x/textureSize))
       const subPoints = [
         a,
         a.add(ab),
