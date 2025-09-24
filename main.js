@@ -297,7 +297,7 @@ class Main {
         a.add(ad),
       ]
       const colour = texture[y][x]==="#" ? mainColour : secondaryColour
-				drawFace(subPoints, colour);
+				this.drawFace(subPoints, colour);
 			}
 		}
 		
