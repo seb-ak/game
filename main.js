@@ -297,13 +297,13 @@ class Main {
         a.add(ad),
       ]
       const colour = texture[y][x]==="#" ? mainColour : secondaryColour
-				drawShape(subPoints, colour);
+				drawFace(subPoints, colour);
 			}
 		}
 		
 	}
 
-    drawFace(points, fillColour="#005000") {//, outlineColour="#00a000", textureId=NaN) {
+    drawFace(points, colour="#005000") {//, outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
         this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
@@ -318,10 +318,10 @@ class Main {
 
         this.ctx.closePath();
 
-        this.ctx.fillStyle = fillColour;
+        this.ctx.fillStyle = colour;
         this.ctx.fill();
 
-        this.ctx.strokeStyle = outlineColour;
+        this.ctx.strokeStyle = colour;
         this.ctx.lineWidth = 1;
         this.ctx.stroke();
     }
