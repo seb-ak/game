@@ -1,3 +1,4 @@
+try {
 // import { vec3 } from "/helper.js";
 // import { level1 } from "/levels.js";
 // moved the imports into this single file to stop the: Cross-Origin Request Blocked error
@@ -71,19 +72,46 @@ const level1 = [
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XX     XXXXXXXXXXXX                      X",
 "XX          X         XXXXXXXXXXXX       X",
-"XXXX                 X          XXXXX   XX",
+"XXXX               X X          XXXXX   XX",
 "XXXXXXXXXXXXXXX         XXXXX      XXXX XX",
 "XXXX     XXX       XXXXXXXXXXXX    XXXX XX",
 "XXXX  s         XXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-]
+];
 
-const brickTexture = [
-	"##  ",
-	"  ##",
-	"##  ",
-	"  ##",
-]
+const gameTextures = [
+    [
+        "##  ",
+        "  ##",
+        "##  ",
+        "  ##"
+    ],
+    [
+        "# ",
+        " #"
+    ],
+    [
+        "# # # # ",
+        " # # # #",
+        "# # # # ",
+        " # # # #",
+        "# # # # ",
+        " # # # #",
+        "# # # # ",
+        " # # # #",
+    ],
+    [
+        "##  ## #",
+        "   ###  ",
+        " ###    ",
+        "#      #",
+        "   #### ",
+        "###     ",
+        " ##  ###",
+        "   ##  #",
+    ],
+];
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 //------------------------------------------ main.js ------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -172,23 +200,31 @@ class Main {
         };
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
-
+        
         this.level = {
             main:[],
             second:[]
-        }
+        };
 
         this.camera = {
-            location: new vec3(0,4,-4),
+            location: new vec3(20,2,-4),
             fov: 90,
-        }
+        };
 
-        this.t = 0
+        this.t = 0;
 
         logError("started");
         setInterval(this.update.bind(this), 20);
-        // this.update()
+        // this.update();
 
+        this.inputs = {
+            up:false,
+            down:false,
+            left:false,
+            right:false,
+            jump:false,
+            dash:false,
+        }
     }
 
     // adds objects to the level from the 2d array
@@ -220,8 +256,8 @@ class Main {
     update() {
         try {
             this.t++
-            this.camera.location.x = 20 + Math.sin(this.t/60)*15;
-            this.camera.location.y = 4 + Math.cos(this.t/120)*1;
+            // this.camera.location.x = 20 + Math.sin(this.t/60)*15;
+            // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
             this.draw();
         } catch (e) {logError(e);}
     }
@@ -270,33 +306,62 @@ class Main {
 
         for (const object of projectedObjects) { // draw not front faces first
             if (object[0].face==="front") continue;
-            this.drawShape(object);
+            this.drawShape(object, 2);
         }
         for (const object of projectedObjects) { // front faces drawn last
             if (object[0].face!=="front") continue;
-            this.drawShape(object);
+            this.drawShape(object, 2);
         }
     }
 
-    drawShape(points, mainColour="#005000", secondaryColour="#00a000", textureId=NaN) {
-  const texture = brickTexture;
-  const textureSize = 4;
+    drawShape(points, textureId=null, mainColour="#00a000", secondaryColour="#005000") {
+        let cullFace = true;
+        for (const p of points) {
+            if (
+                p.x>0 && p.x<this.screen.width &&
+                p.y>0 && p.y<this.screen.height
+            ) {
+                cullFace = false;
+                break;
+            }
+        }
+        if (cullFace) return;
 
-  let ab = points[0].sub(points[1]);
-  ab = ab.mult(0.25);
-  let ad = points[0].sub(points[3]);
-  ad = ad.mult(0.25);
-		
+        if (textureId===null) {
+            this.drawFace(points);
+            return;
+        }
+
+        const texture = gameTextures[textureId];
+        const textureSize = texture.length;
+
+        function interp(u, v) {
+            return points[0].mult((1-u)*(1-v))
+                .add(points[1].mult(   u *(1-v)))
+                .add(points[2].mult(   u *   v ))
+                .add(points[3].mult((1-u)*   v ));
+        }
+        
 		for (let y=0; y<textureSize; y++) {
 			for (let x=0; x<textureSize; x++) {
-				const a = points[0].add(ab.mult(y/textureSize)).add(ad.mult(x/textureSize))
-      const subPoints = [
-        a,
-        a.add(ab),
-        a.add(ab).add(ad),
-        a.add(ad),
-      ]
-      const colour = texture[y][x]==="#" ? mainColour : secondaryColour
+                const u0 = x / textureSize;
+                const v0 = y / textureSize;
+                const u1 = (x + 1) / textureSize;
+                const v1 = (y + 1) / textureSize;
+
+                // Bilinear interpolation formula
+                //  P(u, v) = (1-u)(1-v) * P0
+                //            + u(1-v)   * P1
+                //            + u v      * P2
+                //            + (1-u)v   * P3
+                
+                const subPoints = [
+                    interp(u0, v0),
+                    interp(u1, v0),
+                    interp(u1, v1),
+                    interp(u0, v1),
+                ];
+                const colour = texture[y][x]==="#" ? mainColour : secondaryColour;
 				this.drawFace(subPoints, colour);
 			}
 		}
@@ -321,11 +386,14 @@ class Main {
         this.ctx.fillStyle = colour;
         this.ctx.fill();
 
-        this.ctx.strokeStyle = colour;
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        // this.ctx.strokeStyle = colour;
+        // this.ctx.lineWidth = 1;
+        // this.ctx.stroke();
     }
 }
 
 const main = new Main();
 main.generateLevel(level1);
+
+
+} catch (e) {logError(e);}
