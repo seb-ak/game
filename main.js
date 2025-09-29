@@ -9,7 +9,8 @@ try {
 function logError(text) {
     const p = document.createElement("p");
     p.textContent = text;
-    document.getElementById("console").appendChild(p);
+    // document.getElementById("console").appendChild(p);
+    document.getElementById("console").replaceChildren(p);
 }
 
 class vec3 {
@@ -77,6 +78,33 @@ const level1 = [
 "XXXX     XXX       XXXXXXXXXXXX    XXXX XX",
 "XXXX  s         XXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+];
+const level2 = [
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXX  XX  XX  XXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"X                                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"X                                  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"X          X     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"X    X     X     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 ];
 
 const gameTextures = [
@@ -194,9 +222,25 @@ class levelTile extends gameObject {
 class Main {
     constructor() {
 
+        // this.screen = {
+        //     width: 320,
+        //     height: 240,
+        //     subscreen: {
+        //         x: 10,
+        //         y: 10,
+        //         width: 240,
+        //         height: 180,
+        //     }
+        // };
         this.screen = {
-            width: 320,
-            height: 240,
+            width: 192,
+            height: 144,
+            subscreen: {
+                x: 10,
+                y: 10,
+                width: 150,
+                height: 100,
+            }
         };
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
@@ -209,15 +253,20 @@ class Main {
         this.camera = {
             location: new vec3(20,2,-4),
             fov: 90,
+            speed: 0.1
         };
 
         this.t = 0;
 
-        logError("started");
-        setInterval(this.update.bind(this), 20);
-        // this.update();
+        this.frames = 0;
+        this.nextSecond = 0;
+        
+        this.frameRateCap = 60;
 
-        this.inputs = {
+        logError("started");
+        setInterval(this.update.bind(this), 500/this.frameRateCap);
+
+        this.pressedInputs = {
             up:false,
             down:false,
             left:false,
@@ -225,12 +274,34 @@ class Main {
             jump:false,
             dash:false,
         }
+        document.addEventListener("keydown", (event) => {
+            switch(event.key.toLowerCase()) {
+                case "w": this.pressedInputs.up = true; break;
+                case "s": this.pressedInputs.down = true; break;
+                case "a": this.pressedInputs.left = true; break;
+                case "d": this.pressedInputs.right = true; break;
+                case " ": this.pressedInputs.jump = true; break;
+                case "shift": this.pressedInputs.dash = true; break;
+            }
+        });
+        document.addEventListener("keyup", (event) => {
+            switch(event.key.toLowerCase()) {
+                case "w": this.pressedInputs.up = false; break;
+                case "s": this.pressedInputs.down = false; break;
+                case "a": this.pressedInputs.left = false; break;
+                case "d": this.pressedInputs.right = false; break;
+                case " ": this.pressedInputs.jump = false; break;
+                case "shift": this.pressedInputs.dash = false; break;
+            }
+        });
     }
 
     // adds objects to the level from the 2d array
     generateLevel(level, main="main") {
+        level = level.reverse();
         const types = {"X":"wall", " ":"air"}
-        for (let y = level.length - 1; y >= 0; y--) {
+
+        for (let y = 0; y < level.length; y++) {
             for (let x = 0; x < level[y].length; x++) {
                 const type = types[level[y][x]] || "air";
 
@@ -253,16 +324,91 @@ class Main {
         }
     }
 
+    // runs every frame
     update() {
-        try {
-            this.t++
-            // this.camera.location.x = 20 + Math.sin(this.t/60)*15;
-            // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
-            this.draw();
-        } catch (e) {logError(e);}
+    try {
+        this.frames++;
+        if (this.nextSecond < performance.now()) {
+            this.nextSecond = performance.now() + 1000;
+            logError("FPS: " + this.frames);
+            this.frames = 0;
+        };
+
+        this.inputs();
+        this.move();
+        this.draw();
+
+    } catch (e) {logError(e);}
     }
 
-    projectObjects(objects, fov=this.camera.fov, w=this.screen.width, h=this.screen.height) {
+    inputs() {
+        this.camera.location.x += (this.pressedInputs.right - this.pressedInputs.left) * this.camera.speed * (this.pressedInputs.dash? 4 : 1);
+        this.camera.location.y += (this.pressedInputs.up - this.pressedInputs.down) * this.camera.speed * (this.pressedInputs.dash? 4 : 1);
+    }
+
+    move() {
+        this.t++
+        // this.camera.location.x = 20 + Math.sin(this.t/60)*15;
+        // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
+    }
+
+    draw() {
+        this.ctx.fillStyle = "#003b1dff";
+        this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
+
+        this.drawLevel(this.level.main);
+
+        this.drawUi();
+    }
+
+
+
+
+    drawUi() {
+        const mainColour = "#00a000"
+        const secondaryColour = "#005000"
+        this.drawFace([ // top
+            new vec3(0,                 0,0),
+            new vec3(this.screen.width, 0,0),
+            new vec3(this.screen.width, this.screen.subscreen.y,0),
+            new vec3(0,                 this.screen.subscreen.y,0)],
+            mainColour
+        );
+        this.drawFace([ //left
+            new vec3(0,                       0,0),
+            new vec3(this.screen.subscreen.x, 0,0),
+            new vec3(this.screen.subscreen.x, this.screen.height,0),
+            new vec3(0,                       this.screen.height,0)],
+            mainColour
+        );
+        this.drawFace([ //bottom
+            new vec3(0,                 this.screen.subscreen.y + this.screen.subscreen.height,0),
+            new vec3(this.screen.width, this.screen.subscreen.y + this.screen.subscreen.height,0),
+            new vec3(this.screen.width, this.screen.height,0),
+            new vec3(0,                 this.screen.height,0)],
+            mainColour
+        );
+        this.drawFace([ //right
+            new vec3(this.screen.subscreen.x + this.screen.subscreen.width, 0,0),
+            new vec3(this.screen.width,                                     0,0),
+            new vec3(this.screen.width,                                     this.screen.height,0),
+            new vec3(this.screen.subscreen.x + this.screen.subscreen.width, this.screen.height,0)],
+            mainColour
+        );
+    }
+
+    drawLevel(level) {
+        const projectedObjects = this.projectObjects(level);
+        
+        projectedObjects.sort((a, b) => b.distance - a.distance);
+
+        const textureIndexes = ["","wall"]
+        
+        for (const object of projectedObjects) {
+            this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
+        }
+    }
+    projectObjects(objects, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height) {
         const fovRad = fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
 
@@ -275,59 +421,44 @@ class Main {
                 const vertices = obj.getFaceVertecies(face);
                 const projectedVertices = [];
                 
+                let cullFace = true;
                 for (const point of vertices) {
                     const translatedPoint = point.sub(this.camera.location);
                     const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
-                    projectedPoint.face = face;
                     projectedVertices.push(projectedPoint);
+                    if (
+                        projectedPoint.x>this.screen.subscreen.x && 
+                        projectedPoint.x<this.screen.subscreen.x + this.screen.subscreen.width &&
+                        projectedPoint.y>this.screen.subscreen.y && 
+                        projectedPoint.y<this.screen.subscreen.y + this.screen.subscreen.height
+                    ) {
+                        cullFace = false;
+                    }
                 }
-                projectedObjects.push(projectedVertices);
+                if (cullFace) continue;
+
+                const location = vertices[0].add(vertices[2]).div(2);
+                // const location = vertices[0].add(vertices[1]).add(vertices[2]).add(vertices[3]).div(4);
+                const dist = location.sub(this.camera.location).length();
+
+                projectedObjects.push({
+                    distance: dist,
+                    type: obj.type,
+                    face: face,
+                    vertices: projectedVertices
+                });
             }
 
         }
         return projectedObjects
     }
-
     projectPoint({x, y, z}, f, w, h) {
         let px = (x / z) * f + w/2;
-        let py = (y / z) * f + h/2;
+        let py = (-y / z) * f + h/2;
         return new vec3(px, py, 0)
     }
-
-    draw() {
-        this.ctx.fillStyle = "#003b1dff";
-        this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
-
-        this.drawLevel(this.level.main);
-    }
-
-    drawLevel(level) {
-        const projectedObjects = this.projectObjects(level);
-
-        for (const object of projectedObjects) { // draw not front faces first
-            if (object[0].face==="front") continue;
-            this.drawShape(object, 2);
-        }
-        for (const object of projectedObjects) { // front faces drawn last
-            if (object[0].face!=="front") continue;
-            this.drawShape(object, 2);
-        }
-    }
-
-    drawShape(points, textureId=null, mainColour="#00a000", secondaryColour="#005000") {
-        let cullFace = true;
-        for (const p of points) {
-            if (
-                p.x>0 && p.x<this.screen.width &&
-                p.y>0 && p.y<this.screen.height
-            ) {
-                cullFace = false;
-                break;
-            }
-        }
-        if (cullFace) return;
-
-        if (textureId===null) {
+    drawShape(points, textureId=-1, mainColour="#00a000", secondaryColour="#005000") {
+        if (textureId == -1) {
             this.drawFace(points);
             return;
         }
@@ -335,8 +466,14 @@ class Main {
         const texture = gameTextures[textureId];
         const textureSize = texture.length;
 
+        // Bilinear interpolation formula
+        //  P(u, v) = (1-u)(1-v) * P0
+        //            + u(1-v)   * P1
+        //            + u v      * P2
+        //            + (1-u)v   * P3
+
         function interp(u, v) {
-            return points[0].mult((1-u)*(1-v))
+            return  (points[0].mult((1-u)*(1-v)))
                 .add(points[1].mult(   u *(1-v)))
                 .add(points[2].mult(   u *   v ))
                 .add(points[3].mult((1-u)*   v ));
@@ -348,12 +485,6 @@ class Main {
                 const v0 = y / textureSize;
                 const u1 = (x + 1) / textureSize;
                 const v1 = (y + 1) / textureSize;
-
-                // Bilinear interpolation formula
-                //  P(u, v) = (1-u)(1-v) * P0
-                //            + u(1-v)   * P1
-                //            + u v      * P2
-                //            + (1-u)v   * P3
                 
                 const subPoints = [
                     interp(u0, v0),
@@ -367,7 +498,6 @@ class Main {
 		}
 		
 	}
-
     drawFace(points, colour="#005000") {//, outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
@@ -393,7 +523,7 @@ class Main {
 }
 
 const main = new Main();
-main.generateLevel(level1);
+main.generateLevel(level2);
 
 
 } catch (e) {logError(e);}
