@@ -1,4 +1,4 @@
-try {
+// try {
 // import { vec3 } from "/helper.js";
 // import { level1 } from "/levels.js";
 // moved the imports into this single file to stop the: Cross-Origin Request Blocked error
@@ -84,20 +84,20 @@ const level2 = [
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXX  s                                              XXXXXXX",
+"XXXXXXXXX                                                 XXXXXXX",
+"XXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXX  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXX  XXXXXXX        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXX                     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXX          X          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXX           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXX          X    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXX                     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXX         X                  XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXX    X                       XXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
 "XXXXXXXXXXXXXXXXXXXXX  XX  XX  XXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 "X                                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
@@ -107,6 +107,7 @@ const level2 = [
 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 ];
 
+const textureIndexes = ["brick","wall","test1","test2","player"]
 const gameTextures = [
     [
         "##  ",
@@ -138,13 +139,57 @@ const gameTextures = [
         " ##  ###",
         "   ##  #",
     ],
+    [
+        "#####",
+        "# # #",
+        "#####",
+        "#   #",
+        "#####",
+        "#####",
+        "#   #",
+        "#   #",
+    ]
 ];
+
+const Font = {
+    " ":[],
+    "@":[],
+    "A":[
+        "###",
+        "# #",
+        "###",
+        "# #",
+        "# #",
+    ],
+    "B":[
+        "###",
+        "# #",
+        "## ",
+        "# #",
+        "###",
+    ],
+    "C":[
+        "###",
+        "#  ",
+        "#  ",
+        "#  ",
+        "###",
+    ],
+    "D":[
+        "## ",
+        "# #",
+        "# #",
+        "# #",
+        "## ",
+    ],
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 //------------------------------------------ main.js ------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////
 class gameObject {
     constructor(location) {
+        this.type = ""
         this.location = location
         this.collision = {
             up:true,
@@ -165,17 +210,6 @@ class gameObject {
             br: this.location.add(new vec3(this.size.x, 0,           0))
         }
     }
-}
-
-class levelTile extends gameObject {
-    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}) {
-        super(location);
-
-        this.adjacent = adjacent;
-        this.type = type;
-        this.texture = "none";
-    }
-
     getFaceVertecies(face) {
         switch(face) {
             case "front":
@@ -217,29 +251,119 @@ class levelTile extends gameObject {
                 return [];
         }
     }
+
+    isCollidingWith(obj) {
+        // AABB collison - Axis-Aligned Bounding Box
+        // If all axis colliding
+        // Xcolliding: A_minX <= B_maxX && A_maxX >= B_minX
+        // Ycolliding: A_minY <= B_maxY && A_maxY >= B_minY
+
+        const objPoints = obj.getPoint()
+        const objMax = {
+            x: Math.max(objPoints.tl, objPoints.tr),
+            y: Math.max(objPoints.tl, objPoints.bl)
+        }
+        const objMin = {
+            x: Math.min(objPoints.tl, objPoints.tr),
+            y: Math.min(objPoints.tl, objPoints.bl)
+        }
+
+        const thisPoints = this.getPoint()
+        const thisMax = {
+            x: Math.max(thisPoints.tl, thisPoints.tr),
+            y: Math.max(thisPoints.tl, thisPoints.bl)
+        }
+        const thisMin = {
+            x: Math.min(thisPoints.tl, thisPoints.tr),
+            y: Math.min(thisPoints.tl, thisPoints.bl)
+        }
+
+        return (
+            (objMin.x <= thisMax.x && objMax.x >= thisMin.x) &&
+            (objMin.y <= thisMax.y && objMax.y >= thisMin.y)
+        )
+    }
+}
+
+class levelTile extends gameObject {
+    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}) {
+        super(location);
+
+        this.adjacent = adjacent;
+        this.type = type;
+        this.texture = "none";
+    }
+
+}
+
+class Player extends gameObject {
+    constructor(location) {
+        super(location)
+        this.type = "player"
+        this.size = new vec3(0.5,0.8,0.5)
+        this.texture = "player"
+        this.ticking = true
+
+        this.pressedInputs = {
+            up:   {keys:["w",],active:false},
+            down: {keys:["s",],active:false},
+            left: {keys:["a",],active:false},
+            right:{keys:["d",],active:false},
+            jump: {keys:[" ",],active:false},
+            dash: {keys:["shift",],active:false},
+        }
+        document.addEventListener("keydown", (event) => {
+            for (const input of Object.values(this.pressedInputs)) {
+                const key = event.key.toLowerCase();
+                if ( !input.keys.includes(key) ) continue;
+                input.active = true
+            }
+        });
+        document.addEventListener("keyup", (event) => {
+            for (const input of Object.values(this.pressedInputs)) {
+                const key = event.key.toLowerCase();
+                if ( !input.keys.includes(key) ) continue;
+                input.active = false
+            }
+        });
+
+        this.acceleration = new vec3(1, 1, 0)
+        this.velocity = new vec3(0, 0, 0)
+    }
+    
+    tick(deltaTime) {
+
+        const diagonal = (this.pressedInputs.left.active || this.pressedInputs.right.active) && (this.pressedInputs.up.active || this.pressedInputs.down.active);
+        const mult = this.acceleration.x * (this.pressedInputs.dash.active? 4 : 1) * diagonal? 0.707 : 1;
+        
+        this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
+        this.acceleration.y = (this.pressedInputs.up.active - this.pressedInputs.down.active) * mult * deltaTime;
+
+        this.acceleration.y -= 0.01
+
+        this.velocity = this.velocity.add(this.acceleration)
+
+        this.location = this.location.add(this.velocity)
+
+        
+
+
+    }
 }
 
 class Main {
     constructor() {
+        this.deltaTime = 1
+        this.lastTime = 0
 
-        // this.screen = {
-        //     width: 320,
-        //     height: 240,
-        //     subscreen: {
-        //         x: 10,
-        //         y: 10,
-        //         width: 240,
-        //         height: 180,
-        //     }
-        // };
         this.screen = {
             width: 192,
             height: 144,
             subscreen: {
-                x: 10,
-                y: 10,
-                width: 150,
-                height: 100,
+                x: 2,
+                y: 2,
+                width: 192-52,
+                height: 144-22,
             }
         };
         this.canvas = document.getElementById("gameCanvas");
@@ -253,10 +377,7 @@ class Main {
         this.camera = {
             location: new vec3(20,2,-4),
             fov: 90,
-            speed: 0.1
         };
-
-        this.t = 0;
 
         this.frames = 0;
         this.nextSecond = 0;
@@ -264,46 +385,22 @@ class Main {
         this.frameRateCap = 60;
 
         logError("started");
-        setInterval(this.update.bind(this), 500/this.frameRateCap);
+        requestAnimationFrame(this.update.bind(this));
 
-        this.pressedInputs = {
-            up:false,
-            down:false,
-            left:false,
-            right:false,
-            jump:false,
-            dash:false,
-        }
-        document.addEventListener("keydown", (event) => {
-            switch(event.key.toLowerCase()) {
-                case "w": this.pressedInputs.up = true; break;
-                case "s": this.pressedInputs.down = true; break;
-                case "a": this.pressedInputs.left = true; break;
-                case "d": this.pressedInputs.right = true; break;
-                case " ": this.pressedInputs.jump = true; break;
-                case "shift": this.pressedInputs.dash = true; break;
-            }
-        });
-        document.addEventListener("keyup", (event) => {
-            switch(event.key.toLowerCase()) {
-                case "w": this.pressedInputs.up = false; break;
-                case "s": this.pressedInputs.down = false; break;
-                case "a": this.pressedInputs.left = false; break;
-                case "d": this.pressedInputs.right = false; break;
-                case " ": this.pressedInputs.jump = false; break;
-                case "shift": this.pressedInputs.dash = false; break;
-            }
-        });
     }
 
     // adds objects to the level from the 2d array
     generateLevel(level, main="main") {
         level = level.reverse();
-        const types = {"X":"wall", " ":"air"}
+        const types = {"X":"wall", " ":"air", "s":"spawn"}
 
         for (let y = 0; y < level.length; y++) {
             for (let x = 0; x < level[y].length; x++) {
                 const type = types[level[y][x]] || "air";
+
+                if (type === "spawn") {
+                    this.level[main].push(new Player(new vec3(x,y,0)))
+                }
 
                 if (type !== "wall") continue;
 
@@ -325,31 +422,38 @@ class Main {
     }
 
     // runs every frame
-    update() {
-    try {
+    update(currentTime) {
+    // try {
+        this.deltaTime = (currentTime - this.lastTime) / 1000
+        this.lastTime = currentTime
+
         this.frames++;
-        if (this.nextSecond < performance.now()) {
-            this.nextSecond = performance.now() + 1000;
-            logError("FPS: " + this.frames);
+        if (this.nextSecond < currentTime) {
+            logError("FPS: " + this.frames + `  deltaTime: ${this.deltaTime}`);
+            this.nextSecond = currentTime + 1000;
             this.frames = 0;
         };
 
-        this.inputs();
-        this.move();
+
+
+        for (const obj of this.level.main) {
+
+            if (obj.ticking) obj.tick(this.deltaTime);
+            if (obj.type === "player") {
+                this.camera.location.x = obj.location.x
+                this.camera.location.y = obj.location.y
+            }
+
+        }
+
+
+
         this.draw();
 
-    } catch (e) {logError(e);}
-    }
 
-    inputs() {
-        this.camera.location.x += (this.pressedInputs.right - this.pressedInputs.left) * this.camera.speed * (this.pressedInputs.dash? 4 : 1);
-        this.camera.location.y += (this.pressedInputs.up - this.pressedInputs.down) * this.camera.speed * (this.pressedInputs.dash? 4 : 1);
-    }
 
-    move() {
-        this.t++
-        // this.camera.location.x = 20 + Math.sin(this.t/60)*15;
-        // this.camera.location.y = 4 + Math.cos(this.t/120)*1;
+        requestAnimationFrame(this.update.bind(this));
+    // } catch (e) {logError(e);}
     }
 
     draw() {
@@ -360,8 +464,6 @@ class Main {
 
         this.drawUi();
     }
-
-
 
 
     drawUi() {
@@ -396,13 +498,10 @@ class Main {
             mainColour
         );
     }
-
     drawLevel(level) {
         const projectedObjects = this.projectObjects(level);
         
         projectedObjects.sort((a, b) => b.distance - a.distance);
-
-        const textureIndexes = ["","wall"]
         
         for (const object of projectedObjects) {
             this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
@@ -415,7 +514,9 @@ class Main {
         const projectedObjects = [];
         for (const obj of objects) {
 
-            for (const [face, adjacent] of Object.entries(obj.adjacent)) {
+            const allAdjacent = Object.entries({up:false,down:false,left:false,right:false,front:false})
+
+            for (const [face, adjacent] of obj.adjacent? Object.entries(obj.adjacent) : allAdjacent) {
                 if (adjacent) continue;
                 
                 const vertices = obj.getFaceVertecies(face);
@@ -464,7 +565,8 @@ class Main {
         }
 
         const texture = gameTextures[textureId];
-        const textureSize = texture.length;
+        const textureHeight = texture.length;
+        const textureWidth = texture[0].length;
 
         // Bilinear interpolation formula
         //  P(u, v) = (1-u)(1-v) * P0
@@ -479,12 +581,12 @@ class Main {
                 .add(points[3].mult((1-u)*   v ));
         }
         
-		for (let y=0; y<textureSize; y++) {
-			for (let x=0; x<textureSize; x++) {
-                const u0 = x / textureSize;
-                const v0 = y / textureSize;
-                const u1 = (x + 1) / textureSize;
-                const v1 = (y + 1) / textureSize;
+		for (let y=0; y<textureHeight; y++) {
+			for (let x=0; x<textureWidth; x++) {
+                const u0 = x / textureWidth;
+                const v0 = y / textureHeight;
+                const u1 = (x + 1) / textureWidth;
+                const v1 = (y + 1) / textureHeight;
                 
                 const subPoints = [
                     interp(u0, v0),
@@ -525,5 +627,4 @@ class Main {
 const main = new Main();
 main.generateLevel(level2);
 
-
-} catch (e) {logError(e);}
+// } catch (e) {logError(e);}
