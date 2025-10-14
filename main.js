@@ -299,10 +299,12 @@ class levelTile extends gameObject {
 class Player extends gameObject {
     constructor(location) {
         super(location)
-        this.type = "player"
-        this.size = new vec3(0.5,0.8,0.5)
-        this.texture = "player"
-        this.ticking = true
+        this.type = "player";
+        this.size = new vec3(0.5,0.8,0.5);
+        this.texture = "player";
+        this.ticking = true;
+
+        this.onFloor = false;
 
         this.pressedInputs = {
             up:   {keys:["w",],active:false},
@@ -327,11 +329,11 @@ class Player extends gameObject {
             }
         });
 
-        this.acceleration = new vec3(1, 1, 0)
-        this.velocity = new vec3(0, 0, 0)
+        this.acceleration = new vec3(1, 1, 0);
+        this.velocity = new vec3(0, 0, 0);
     }
     
-    tick(deltaTime) {
+    tick(deltaTime, level) {
 
         const diagonal = (this.pressedInputs.left.active || this.pressedInputs.right.active) && (this.pressedInputs.up.active || this.pressedInputs.down.active);
         const mult = this.acceleration.x * (this.pressedInputs.dash.active? 4 : 1) * diagonal? 0.707 : 1;
@@ -339,14 +341,45 @@ class Player extends gameObject {
         this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
         this.acceleration.y = (this.pressedInputs.up.active - this.pressedInputs.down.active) * mult * deltaTime;
 
-        this.acceleration.y -= 0.01
+        this.acceleration.y -= 0.01;
 
         this.velocity = this.velocity.add(this.acceleration)
 
-        this.location = this.location.add(this.velocity)
+        this.onFloor = false;
 
-        
+        this.location.x += this.velocity.x
+        for (const obj of level) {
+            if (!obj.collision) continue;
+            if (!this.isCollidingWith(obj) continue;
 
+            if (this.velocity.x > 0) {
+                const diff = obj.getPoint().bl - this.getPoint(br)
+                this.location.x -= diff;
+                this.velocity.x = 0;
+            }
+            else if (this.velocity.x < 0) {
+                const diff = obj.getPoint().br - this.getPoint(bl)
+                this.location.x -= diff;
+                this.velocity.x = 0;
+            }
+        }
+        this.location.y += this.velocity.y
+        for (const obj of level) {
+            if (!obj.collision) continue;
+            if (!this.isCollidingWith(obj) continue;
+
+            if (this.velocity.y > 0) {
+                const diff = obj.getPoint().bl - this.getPoint(tl)
+                this.locationyx -= diff;
+                this.velocity.y = 0;
+            }
+            else if (this.velocity.y < 0) {
+                const diff = obj.getPoint().tl - this.getPoint(bl)
+                this.location.y -= diff;
+                this.velocity.y = 0;
+                this.onFloor = true;
+            }
+        }
 
     }
 }
@@ -373,6 +406,7 @@ class Main {
             main:[],
             second:[]
         };
+        this.levelLayer = "main"
 
         this.camera = {
             location: new vec3(20,2,-4),
@@ -436,9 +470,9 @@ class Main {
 
 
 
-        for (const obj of this.level.main) {
+        for (const obj of this.level[this.levelLayer]) {
 
-            if (obj.ticking) obj.tick(this.deltaTime);
+            if (obj.ticking) obj.tick(this.deltaTime, this.level[this.levelLayer]);
             if (obj.type === "player") {
                 this.camera.location.x = obj.location.x
                 this.camera.location.y = obj.location.y
@@ -460,7 +494,7 @@ class Main {
         this.ctx.fillStyle = "#003b1dff";
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        this.drawLevel(this.level.main);
+        this.drawLevel(this.level[this.levelLayer]);
 
         this.drawUi();
     }
