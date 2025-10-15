@@ -6,15 +6,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Game</title>
   <style>
-  body {background-color: black; color: white;}
-  #gameCanvas {
-    /* width: 90vw;
-    max-height: 80vh; */
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    background-color: #111111;
-    padding: 10px;
-  }
+body {
+  background-color: #005000; 
+  color: #00a000; font-weight: bold; 
+  margin: 0; overflow: hidden;
+}
+#gameCanvas {
+  width: 100vw;
+  height: calc(100vw * 3 / 4);
+
+  max-height: 100vh;
+  max-width: calc(100vh * 4 / 3);
+
+  image-rendering: pixelated;
+
+  display: block;
+  margin: auto;
+}
   </style>
 
 </head>
@@ -27,6 +35,7 @@
     <p>console:</p>
   </div>
   
-  <script src="main.js"></script>
+  <script type="module" src="./main.js"></script>
+
 </body>
 </html>

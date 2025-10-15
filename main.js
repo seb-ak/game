@@ -1,192 +1,8 @@
 // try {
-// import { vec3 } from "/helper.js";
-// import { level1 } from "/levels.js";
-// moved the imports into this single file to stop the: Cross-Origin Request Blocked error
+import { logError, vec3 } from "./other.js";
+import { level1, level2 } from "./levels.js";
+import { textureIndexes, gameTextures, Font } from "./textures.js"
 
-//////////////////////////////////////////////////////////////////////////////////////////////////
-//----------------------------------------- helper.js -----------------------------------------//
-////////////////////////////////////////////////////////////////////////////////////////////////
-function logError(text) {
-    const p = document.createElement("p");
-    p.textContent = text;
-    // document.getElementById("console").appendChild(p);
-    document.getElementById("console").replaceChildren(p);
-}
-
-class vec3 {
-    constructor(x=NaN, y=NaN, z=NaN) {
-        this.x = x
-        this.y = y
-        this.z = z
-    }
-
-    add(vec) {
-        return new vec3(
-            this.x + vec.x,
-            this.y + vec.y,
-            this.z + vec.z
-        )
-    }
-
-    sub(vec) {
-        return new vec3(
-            this.x - vec.x,
-            this.y - vec.y,
-            this.z - vec.z
-        )
-    }
-
-    mult(n) {
-        return new vec3(
-            this.x * n,
-            this.y * n,
-            this.z * n
-        )
-    }
-
-    div(n) {
-        return new vec3(
-            this.x / n,
-            this.y / n,
-            this.z / n
-        )
-    }
-
-    length() {
-        return Math.sqrt(
-            Math.pow(this.x, 2) +
-            Math.pow(this.y, 2) +
-            Math.pow(this.z, 2)
-        )
-    }
-
-    normalise() {
-        const len = this.length()
-        return this.div(len)
-    }
-}
-//////////////////////////////////////////////////////////////////////////////////////////////////
-//----------------------------------------- levels.js -----------------------------------------//
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-const level1 = [
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XX     XXXXXXXXXXXX                      X",
-"XX          X         XXXXXXXXXXXX       X",
-"XXXX               X X          XXXXX   XX",
-"XXXXXXXXXXXXXXX         XXXXX      XXXX XX",
-"XXXX     XXX       XXXXXXXXXXXX    XXXX XX",
-"XXXX  s         XXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-];
-const level2 = [
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXX  s                                              XXXXXXX",
-"XXXXXXXXX                                                 XXXXXXX",
-"XXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXX  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXX  XXXXXXX        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXX                     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXX          X          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXX           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXX          X    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXX                     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXX         X                  XXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXX    X                       XXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXX                            XXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXX  XX  XX  XXX   XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"X                                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"X                                  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"X          X     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"X    X     X     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-];
-
-const textureIndexes = ["brick","wall","test1","test2","player"]
-const gameTextures = [
-    [
-        "##  ",
-        "  ##",
-        "##  ",
-        "  ##"
-    ],
-    [
-        "# ",
-        " #"
-    ],
-    [
-        "# # # # ",
-        " # # # #",
-        "# # # # ",
-        " # # # #",
-        "# # # # ",
-        " # # # #",
-        "# # # # ",
-        " # # # #",
-    ],
-    [
-        "##  ## #",
-        "   ###  ",
-        " ###    ",
-        "#      #",
-        "   #### ",
-        "###     ",
-        " ##  ###",
-        "   ##  #",
-    ],
-    [
-        "#####",
-        "# # #",
-        "#####",
-        "#   #",
-        "#####",
-        "#####",
-        "#   #",
-        "#   #",
-    ]
-];
-
-const Font = {
-    " ":[],
-    "@":[],
-    "A":[
-        "###",
-        "# #",
-        "###",
-        "# #",
-        "# #",
-    ],
-    "B":[
-        "###",
-        "# #",
-        "## ",
-        "# #",
-        "###",
-    ],
-    "C":[
-        "###",
-        "#  ",
-        "#  ",
-        "#  ",
-        "###",
-    ],
-    "D":[
-        "## ",
-        "# #",
-        "# #",
-        "# #",
-        "## ",
-    ],
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////
-//------------------------------------------ main.js ------------------------------------------//
-////////////////////////////////////////////////////////////////////////////////////////////////
 class gameObject {
     constructor(location) {
         this.type = ""
@@ -198,6 +14,7 @@ class gameObject {
             right:true,
         };
         this.size = new vec3(1,1,1);
+        this.collision = false;
     }
     
     getPoint() {
@@ -260,24 +77,28 @@ class gameObject {
 
         const objPoints = obj.getPoint()
         const objMax = {
-            x: Math.max(objPoints.tl, objPoints.tr),
-            y: Math.max(objPoints.tl, objPoints.bl)
+            x: Math.max(objPoints.tl.x, objPoints.tr.x),
+            y: Math.max(objPoints.tl.y, objPoints.bl.y)
         }
         const objMin = {
-            x: Math.min(objPoints.tl, objPoints.tr),
-            y: Math.min(objPoints.tl, objPoints.bl)
+            x: Math.min(objPoints.tl.x, objPoints.tr.x),
+            y: Math.min(objPoints.tl.y, objPoints.bl.y)
         }
 
         const thisPoints = this.getPoint()
         const thisMax = {
-            x: Math.max(thisPoints.tl, thisPoints.tr),
-            y: Math.max(thisPoints.tl, thisPoints.bl)
+            x: Math.max(thisPoints.tl.x, thisPoints.tr.x),
+            y: Math.max(thisPoints.tl.y, thisPoints.bl.y)
         }
         const thisMin = {
-            x: Math.min(thisPoints.tl, thisPoints.tr),
-            y: Math.min(thisPoints.tl, thisPoints.bl)
+            x: Math.min(thisPoints.tl.x, thisPoints.tr.x),
+            y: Math.min(thisPoints.tl.y, thisPoints.bl.y)
         }
 
+        return (
+            (objMin.x < thisMax.x && objMax.x > thisMin.x) &&
+            (objMin.y < thisMax.y && objMax.y > thisMin.y)
+        )
         return (
             (objMin.x <= thisMax.x && objMax.x >= thisMin.x) &&
             (objMin.y <= thisMax.y && objMax.y >= thisMin.y)
@@ -292,6 +113,9 @@ class levelTile extends gameObject {
         this.adjacent = adjacent;
         this.type = type;
         this.texture = "none";
+
+        this.collision = true
+        // if (!adjacent.up && !adjacent.down && !adjacent.left && !adjacent.right) this.collision = false
     }
 
 }
@@ -303,8 +127,8 @@ class Player extends gameObject {
         this.size = new vec3(0.5,0.8,0.5);
         this.texture = "player";
         this.ticking = true;
-
-        this.onFloor = false;
+        
+        this.location.z += this.size.z/2
 
         this.pressedInputs = {
             up:   {keys:["w",],active:false},
@@ -330,7 +154,11 @@ class Player extends gameObject {
         });
 
         this.acceleration = new vec3(1, 1, 0);
+        this.friction = 0.95;
         this.velocity = new vec3(0, 0, 0);
+        this.jumpHeight = 1;
+        this.onFloor = false;
+
     }
     
     tick(deltaTime, level) {
@@ -339,43 +167,44 @@ class Player extends gameObject {
         const mult = this.acceleration.x * (this.pressedInputs.dash.active? 4 : 1) * diagonal? 0.707 : 1;
         
         this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
-        this.acceleration.y = (this.pressedInputs.up.active - this.pressedInputs.down.active) * mult * deltaTime;
+        // this.acceleration.y = (this.pressedInputs.up.active - this.pressedInputs.down.active) * mult * deltaTime;
+        this.acceleration.y = (this.onFloor && this.pressedInputs.jump.active) * this.jumpHeight * deltaTime
 
         this.acceleration.y -= 0.01;
-
-        this.velocity = this.velocity.add(this.acceleration)
+        this.velocity = this.velocity.add(this.acceleration).mult(this.friction)
 
         this.onFloor = false;
 
         this.location.x += this.velocity.x
         for (const obj of level) {
             if (!obj.collision) continue;
-            if (!this.isCollidingWith(obj) continue;
+            if (!this.isCollidingWith(obj)) continue;
 
             if (this.velocity.x > 0) {
-                const diff = obj.getPoint().bl - this.getPoint(br)
-                this.location.x -= diff;
+                const diff = obj.getPoint().bl.x - this.getPoint().br.x
+                this.location.x += diff;
                 this.velocity.x = 0;
             }
             else if (this.velocity.x < 0) {
-                const diff = obj.getPoint().br - this.getPoint(bl)
-                this.location.x -= diff;
+                const diff = obj.getPoint().br.x - this.getPoint().bl.x
+                this.location.x += diff;
                 this.velocity.x = 0;
             }
         }
+
         this.location.y += this.velocity.y
         for (const obj of level) {
             if (!obj.collision) continue;
-            if (!this.isCollidingWith(obj) continue;
+            if (!this.isCollidingWith(obj)) continue;
 
             if (this.velocity.y > 0) {
-                const diff = obj.getPoint().bl - this.getPoint(tl)
-                this.locationyx -= diff;
+                const diff = obj.getPoint().bl.y - this.getPoint().tl.y
+                this.locationyx += diff;
                 this.velocity.y = 0;
             }
             else if (this.velocity.y < 0) {
-                const diff = obj.getPoint().tl - this.getPoint(bl)
-                this.location.y -= diff;
+                const diff = obj.getPoint().tl.y - this.getPoint().bl.y
+                this.location.y += diff;
                 this.velocity.y = 0;
                 this.onFloor = true;
             }
@@ -432,25 +261,25 @@ class Main {
             for (let x = 0; x < level[y].length; x++) {
                 const type = types[level[y][x]] || "air";
 
-                if (type === "spawn") {
-                    this.level[main].push(new Player(new vec3(x,y,0)))
+                if (type === "spawn") this.level[main].push(new Player(new vec3(x,y,0)))
+
+                if (type === "wall") {
+
+                    const up =    (y + 1 < level.length)    ? level[y + 1][x] === "X" : false;
+                    const down =  (y - 1 >= 0)              ? level[y - 1][x] === "X" : false;
+                    const left =  (x - 1 >= 0)              ? level[y][x - 1] === "X" : false;
+                    const right = (x + 1 < level[y].length) ? level[y][x + 1] === "X" : false;
+
+                    this.level[main].push(new levelTile(
+                        new vec3(x, y, 0),
+                        type,
+                        {
+                            up, down, left, right,
+                            front: false,
+                        }
+                    ));
+
                 }
-
-                if (type !== "wall") continue;
-
-                const up =    (y + 1 < level.length)    ? level[y + 1][x] === "X" : false;
-                const down =  (y - 1 >= 0)              ? level[y - 1][x] === "X" : false;
-                const left =  (x - 1 >= 0)              ? level[y][x - 1] === "X" : false;
-                const right = (x + 1 < level[y].length) ? level[y][x + 1] === "X" : false;
-
-                this.level[main].push(new levelTile(
-                    new vec3(x, y, 0),
-                    type,
-                    {
-                        up, down, left, right,
-                        front: false,
-                    }
-                ));
             }
         }
     }
@@ -463,11 +292,10 @@ class Main {
 
         this.frames++;
         if (this.nextSecond < currentTime) {
-            logError("FPS: " + this.frames + `  deltaTime: ${this.deltaTime}`);
+            logError(`FPS: ${this.frames}`);
             this.nextSecond = currentTime + 1000;
             this.frames = 0;
         };
-
 
 
         for (const obj of this.level[this.levelLayer]) {
@@ -475,7 +303,7 @@ class Main {
             if (obj.ticking) obj.tick(this.deltaTime, this.level[this.levelLayer]);
             if (obj.type === "player") {
                 this.camera.location.x = obj.location.x
-                this.camera.location.y = obj.location.y
+                this.camera.location.y = obj.location.y+1.5
             }
 
         }
@@ -617,6 +445,8 @@ class Main {
         
 		for (let y=0; y<textureHeight; y++) {
 			for (let x=0; x<textureWidth; x++) {
+                if (texture[y][x]==="-") continue
+
                 const u0 = x / textureWidth;
                 const v0 = y / textureHeight;
                 const u1 = (x + 1) / textureWidth;
