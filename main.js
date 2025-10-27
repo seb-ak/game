@@ -141,24 +141,23 @@ class Player extends gameObject {
         document.addEventListener("keydown", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
                 const key = event.key.toLowerCase();
-                if ( !input.keys.includes(key) ) continue;
-                input.active = true
+                if ( input.keys.includes(key) ) input.active = true;
             }
         });
         document.addEventListener("keyup", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
                 const key = event.key.toLowerCase();
-                if ( !input.keys.includes(key) ) continue;
-                input.active = false
+                if ( input.keys.includes(key) ) input.active = false;
             }
         });
 
-        this.acceleration = new vec3(1, 1, 0);
-        this.friction = 0.95;
+        this.friction = 0.90;
+        this.jumpForce = 30;
+        this.gravity = 0.005;
+        this.acceleration = new vec3(0.2, 0.2, 0);
+        
         this.velocity = new vec3(0, 0, 0);
-        this.jumpHeight = 1;
         this.onFloor = false;
-
     }
     
     tick(deltaTime, level) {
@@ -166,11 +165,13 @@ class Player extends gameObject {
         const diagonal = (this.pressedInputs.left.active || this.pressedInputs.right.active) && (this.pressedInputs.up.active || this.pressedInputs.down.active);
         const mult = this.acceleration.x * (this.pressedInputs.dash.active? 4 : 1) * diagonal? 0.707 : 1;
         
-        this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
-        // this.acceleration.y = (this.pressedInputs.up.active - this.pressedInputs.down.active) * mult * deltaTime;
-        this.acceleration.y = (this.onFloor && this.pressedInputs.jump.active) * this.jumpHeight * deltaTime
+        if (this.velocity.y < 0) this.gravity = 0.03;
+        else this.gravity = 0.01;
 
-        this.acceleration.y -= 0.01;
+        this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
+        this.acceleration.y = (this.onFloor && this.pressedInputs.jump.active) * this.jumpForce * deltaTime
+
+        this.acceleration.y -= this.gravity;
         this.velocity = this.velocity.add(this.acceleration).mult(this.friction)
 
         this.onFloor = false;
@@ -199,7 +200,7 @@ class Player extends gameObject {
 
             if (this.velocity.y > 0) {
                 const diff = obj.getPoint().bl.y - this.getPoint().tl.y
-                this.locationyx += diff;
+                this.location.y += diff;
                 this.velocity.y = 0;
             }
             else if (this.velocity.y < 0) {
