@@ -151,32 +151,78 @@ class Player extends gameObject {
             }
         });
 
-        this.friction = 0.90;
-        this.jumpForce = 30;
-        this.gravity = 0.005;
-        this.acceleration = new vec3(0.2, 0.2, 0);
+        this.jumpForce = 7;
+        this.baseGravity = 0.5;
+        this.jumpTime = 0;
+        this.maxJumpTime = 120;
+
+        this.cyoteTime = 0;
+        this.maxCyoteTime = 1000;
         
         this.velocity = new vec3(0, 0, 0);
         this.onFloor = false;
+
+        this.acceleration = new vec3(0.1, 0, 0)
+        this.deceleration = new vec3(0.5, 0, 0)
+        this.maxVel = new vec3(6, Infinity, Infinity)
     }
     
     tick(deltaTime, level) {
-
-        const diagonal = (this.pressedInputs.left.active || this.pressedInputs.right.active) && (this.pressedInputs.up.active || this.pressedInputs.down.active);
-        const mult = this.acceleration.x * (this.pressedInputs.dash.active? 4 : 1) * diagonal? 0.707 : 1;
+        // movement logic //
+        const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
         
-        if (this.velocity.y < 0) this.gravity = 0.03;
-        else this.gravity = 0.01;
+        // base acceleration
+        let dx = xInput*this.acceleration.x
 
-        this.acceleration.x = (this.pressedInputs.right.active - this.pressedInputs.left.active) * mult * deltaTime;
-        this.acceleration.y = (this.onFloor && this.pressedInputs.jump.active) * this.jumpForce * deltaTime
+        // if switching direction switch faster
+        if (Math.sign(xInput) != Math.sign(this.velocity)) {
+            dx *= 5
+        }
 
-        this.acceleration.y -= this.gravity;
-        this.velocity = this.velocity.add(this.acceleration).mult(this.friction)
+        this.velocity.x += dx
+        this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
 
-        this.onFloor = false;
+        // if not moving decelerate
+        if (dx === 0 && this.velocity.x !== 0) {
+            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - this.deceleration.x)
+            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + this.deceleration.x)
+        }
 
-        this.location.x += this.velocity.x
+        // jumping logic //
+        if (this.cyoteTime > this.maxCyoteTime) this.cyoteTime = 0
+        if (this.cyoteTime > 0) this.cyoteTime += deltaTime * 1000
+        else if (this.onFloor) this.cyoteTime = deltaTime * 1000
+        else this.cyoteTime = 0
+        
+        // hold jump to go higher
+        if (this.pressedInputs.jump.active && this.jumpTime > 0 && this.jumpTime < this.maxJumpTime) {
+            this.velocity.y = this.jumpForce
+            this.jumpTime += deltaTime * 1000
+        } else {
+            this.jumpTime = 0
+        }
+        
+        // start jump
+        const canJump = this.cyoteTime > 0
+        if (canJump && this.pressedInputs.jump.active) {
+            this.jumpTime += deltaTime * 1000
+            this.velocity.y = this.jumpForce
+            this.cyoteTime = 0
+        }
+
+        // gravity logic //
+        let gravity = this.baseGravity
+        const threshold = 3; logError("normal");
+        // increase gravity when falling
+        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.4; logError("high");}
+        // decrease gravity at peak of jump
+        if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("low");}
+
+        this.velocity.y -= gravity
+
+        // logError(`gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)} vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
+
+        this.location.x += this.velocity.x * deltaTime
         for (const obj of level) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
@@ -193,7 +239,8 @@ class Player extends gameObject {
             }
         }
 
-        this.location.y += this.velocity.y
+        this.onFloor = false;
+        this.location.y += this.velocity.y * deltaTime
         for (const obj of level) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
@@ -223,10 +270,10 @@ class Main {
             width: 192,
             height: 144,
             subscreen: {
-                x: 2,
-                y: 2,
-                width: 192-52,
-                height: 144-22,
+                x: 0,
+                y: 0,
+                width: 192,
+                height: 144,
             }
         };
         this.canvas = document.getElementById("gameCanvas");
@@ -326,6 +373,52 @@ class Main {
         this.drawLevel(this.level[this.levelLayer]);
 
         this.drawUi();
+
+        const palette = [
+            [15,56,15],   // dark green
+            [48,98,48],
+            [139,172,15],
+            [155,188,15]
+        ];
+        // this.applyDitherAndPalette(this.ctx, this.screen.width, this.screen.height, palette);
+    }
+    // call after drawing a frame: applyDitherAndPalette(this.ctx, this.screen.width, this.screen.height, palette)
+    applyDitherAndPalette(ctx, w, h, palette) {
+        const img = ctx.getImageData(0, 0, w, h);
+        const d = img.data;
+        // 4x4 Bayer matrix
+        const bayer = [
+            [0, 8, 2,10],
+            [12,4,14,6],
+            [3,11,1,9],
+            [15,7,13,5]
+        ];
+        const N = 16;
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            // original colour
+            let r = d[i], g = d[i+1], b = d[i+2];
+            // Bayer threshold in range -0.5..+0.5
+            const threshold = (bayer[y & 3][x & 3] + 0.5)/N - 0.5;
+            // apply small per-pixel offset (scale to 0..255)
+            r = Math.max(0, Math.min(255, r + threshold * 255));
+            g = Math.max(0, Math.min(255, g + threshold * 255));
+            b = Math.max(0, Math.min(255, b + threshold * 255));
+            // find nearest palette colour (Euclidean)
+            let best = 0, bestD = Infinity;
+            for (let p = 0; p < palette.length; p++) {
+                const pr = palette[p][0], pg = palette[p][1], pb = palette[p][2];
+                const dd = (r-pr)*(r-pr) + (g-pg)*(g-pg) + (b-pb)*(b-pb);
+                if (dd < bestD) { bestD = dd; best = p; }
+            }
+            d[i]   = palette[best][0];
+            d[i+1] = palette[best][1];
+            d[i+2] = palette[best][2];
+            // alpha stays as-is
+            }
+        }
+        ctx.putImageData(img, 0, 0);
     }
 
 
@@ -421,7 +514,7 @@ class Main {
         let py = (-y / z) * f + h/2;
         return new vec3(px, py, 0)
     }
-    drawShape(points, textureId=-1, mainColour="#00a000", secondaryColour="#005000") {
+    drawShape(points, textureId=-1, mainColour="#9c9c9cff", secondaryColour="#292929ff") {
         if (textureId == -1) {
             this.drawFace(points);
             return;
@@ -465,7 +558,7 @@ class Main {
 		}
 		
 	}
-    drawFace(points, colour="#005000") {//, outlineColour="#00a000", textureId=NaN) {
+    drawFace(points, colour="#d4d4d4ff") {//, outlineColour="#00a000", textureId=NaN) {
         this.ctx.beginPath();
 
         this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
