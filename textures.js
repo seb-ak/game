@@ -1,4 +1,4 @@
-export const textureIndexes = ["brick","wall","test1","test2","player"]
+export const textureIndexes = ["wall","brick","test1","test2","player"]
 export const gameTextures = [
     [
         "##  ",

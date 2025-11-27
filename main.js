@@ -1,7 +1,7 @@
-// try {
 import { logError, vec3 } from "./other.js";
-import { level1, level2 } from "./levels.js";
+import { level1, level2, level2_alt } from "./levels.js";
 import { textureIndexes, gameTextures, Font } from "./textures.js"
+try {
 
 class gameObject {
     constructor(location) {
@@ -107,12 +107,14 @@ class gameObject {
 }
 
 class levelTile extends gameObject {
-    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}) {
+    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}, size=1) {
         super(location);
 
         this.adjacent = adjacent;
         this.type = type;
         this.texture = "none";
+
+        this.size = new vec3(size,size,size)
 
         this.collision = true
         // if (!adjacent.up && !adjacent.down && !adjacent.left && !adjacent.right) this.collision = false
@@ -124,7 +126,7 @@ class Player extends gameObject {
     constructor(location) {
         super(location)
         this.type = "player";
-        this.size = new vec3(0.5,0.8,0.5);
+        this.size = new vec3(0.5,1,0.5);
         this.texture = "player";
         this.ticking = true;
         
@@ -154,10 +156,10 @@ class Player extends gameObject {
         this.jumpForce = 7;
         this.baseGravity = 0.5;
         this.jumpTime = 0;
-        this.maxJumpTime = 120;
+        this.maxJumpTime = 170;
 
         this.cyoteTime = 0;
-        this.maxCyoteTime = 1000;
+        this.maxCyoteTime = 200;
         
         this.velocity = new vec3(0, 0, 0);
         this.onFloor = false;
@@ -165,10 +167,15 @@ class Player extends gameObject {
         this.acceleration = new vec3(0.1, 0, 0)
         this.deceleration = new vec3(0.5, 0, 0)
         this.maxVel = new vec3(6, Infinity, Infinity)
+
+        this.justJumped = false;
+        this.lastOnFloor = false;
     }
     
     tick(deltaTime, level) {
+        /////////////////////
         // movement logic //
+        ///////////////////
         const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
         
         // base acceleration
@@ -179,16 +186,32 @@ class Player extends gameObject {
             dx *= 5
         }
 
+        if (!this.onFloor) {
+            dx *= 0.6
+        }
+
         this.velocity.x += dx
         this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
 
         // if not moving decelerate
         if (dx === 0 && this.velocity.x !== 0) {
-            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - this.deceleration.x)
-            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + this.deceleration.x)
+            let decelerate = this.deceleration.x
+            if (!this.onFloor) decelerate *= 1.4
+            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
+            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
         }
 
+        // if just hit floor decelerate
+        if (this.onFloor && !this.lastOnFloor) {
+            let decelerate = this.deceleration.x * 5
+            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
+            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
+        }
+        this.lastOnFloor = this.onFloor
+
+        ////////////////////
         // jumping logic //
+        //////////////////
         if (this.cyoteTime > this.maxCyoteTime) this.cyoteTime = 0
         if (this.cyoteTime > 0) this.cyoteTime += deltaTime * 1000
         else if (this.onFloor) this.cyoteTime = deltaTime * 1000
@@ -203,25 +226,37 @@ class Player extends gameObject {
         }
         
         // start jump
-        const canJump = this.cyoteTime > 0
+        const canJump = this.cyoteTime > 0 && !this.justJumped
         if (canJump && this.pressedInputs.jump.active) {
             this.jumpTime += deltaTime * 1000
             this.velocity.y = this.jumpForce
             this.cyoteTime = 0
+            this.justJumped = true
+        }
+        
+        if (!this.pressedInputs.jump.active) {
+            this.justJumped = false
         }
 
+        ////////////////////
         // gravity logic //
+        //////////////////
         let gravity = this.baseGravity
         const threshold = 3; logError("normal");
         // increase gravity when falling
-        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.4; logError("high");}
+        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.6; logError("high");}
         // decrease gravity at peak of jump
-        if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("low");}
+        else if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("low");}
 
         this.velocity.y -= gravity
 
-        // logError(`gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)} vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
+        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)} vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
 
+        //////////////////////
+        // collision logic //
+        ////////////////////
+
+        // x collisons
         this.location.x += this.velocity.x * deltaTime
         for (const obj of level) {
             if (!obj.collision) continue;
@@ -239,6 +274,7 @@ class Player extends gameObject {
             }
         }
 
+        // y collisions
         this.onFloor = false;
         this.location.y += this.velocity.y * deltaTime
         for (const obj of level) {
@@ -301,15 +337,16 @@ class Main {
     }
 
     // adds objects to the level from the 2d array
-    generateLevel(level, main="main") {
+    generateLevel(level, layer) {
         level = level.reverse();
         const types = {"X":"wall", " ":"air", "s":"spawn"}
+        const size = 0.4
 
         for (let y = 0; y < level.length; y++) {
             for (let x = 0; x < level[y].length; x++) {
                 const type = types[level[y][x]] || "air";
 
-                if (type === "spawn") this.level[main].push(new Player(new vec3(x,y,0)))
+                if (type === "spawn") this.level[layer].push(new Player(new vec3(x*size,y*size,0)))
 
                 if (type === "wall") {
 
@@ -318,13 +355,14 @@ class Main {
                     const left =  (x - 1 >= 0)              ? level[y][x - 1] === "X" : false;
                     const right = (x + 1 < level[y].length) ? level[y][x + 1] === "X" : false;
 
-                    this.level[main].push(new levelTile(
-                        new vec3(x, y, 0),
+                    this.level[layer].push(new levelTile(
+                        new vec3(x*size, y*size, 0),
                         type,
                         {
                             up, down, left, right,
                             front: false,
-                        }
+                        },
+                        size
                     ));
 
                 }
@@ -367,10 +405,12 @@ class Main {
     }
 
     draw() {
-        this.ctx.fillStyle = "#003b1dff";
+        this.ctx.fillStyle = "#181818ff";
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        this.drawLevel(this.level[this.levelLayer]);
+        this.drawLevel(this.level[this.levelLayer], dz=0);
+
+        this.drawLevel(this.level["second"], dz= -10);
 
         this.drawUi();
 
@@ -454,8 +494,8 @@ class Main {
             mainColour
         );
     }
-    drawLevel(level) {
-        const projectedObjects = this.projectObjects(level);
+    drawLevel(level, dz=0) {
+        const projectedObjects = this.projectObjects(level, dz=dz);
         
         projectedObjects.sort((a, b) => b.distance - a.distance);
         
@@ -463,12 +503,13 @@ class Main {
             this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
         }
     }
-    projectObjects(objects, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height) {
+    projectObjects(objects, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height, dz=0) {
         const fovRad = fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
 
         const projectedObjects = [];
         for (const obj of objects) {
+            obj.location.z += dz
 
             const allAdjacent = Object.entries({up:false,down:false,left:false,right:false,front:false})
 
@@ -583,6 +624,7 @@ class Main {
 }
 
 const main = new Main();
-main.generateLevel(level2);
+main.generateLevel(level2, "main");
+main.generateLevel(level2_alt, "second");
 
-// } catch (e) {logError(e);}
+} catch (e) {logError(e);}
