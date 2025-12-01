@@ -1,7 +1,9 @@
-import { logError, vec3 } from "./other.js";
+import { logError, clearLog, vec3 } from "./other.js";
 import { level1, level2, level2_alt } from "./levels.js";
 import { textureIndexes, gameTextures, Font } from "./textures.js"
 try {
+
+const colours = ["#9c9c9cff", "#4e4e4eff", "#292929ff", "#181818ff"]
 
 class gameObject {
     constructor(location) {
@@ -242,15 +244,17 @@ class Player extends gameObject {
         // gravity logic //
         //////////////////
         let gravity = this.baseGravity
-        const threshold = 3; logError("normal");
+        const threshold = 3;
         // increase gravity when falling
-        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.6; logError("high");}
+        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.6; logError("gravity: high");}
         // decrease gravity at peak of jump
-        else if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("low");}
+        else if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("gravity: low");}
+        else {gravity = this.baseGravity; logError("gravity: normal")}
 
         this.velocity.y -= gravity
 
-        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)} vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
+        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
+        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
 
         //////////////////////
         // collision logic //
@@ -301,6 +305,12 @@ class Main {
     constructor() {
         this.deltaTime = 1
         this.lastTime = 0
+        this.fps = 0
+
+        this.frames = 0;
+        this.nextSecond = 0;
+        
+        this.frameRateCap = 60;
 
         this.screen = {
             width: 192,
@@ -326,11 +336,6 @@ class Main {
             fov: 90,
         };
 
-        this.frames = 0;
-        this.nextSecond = 0;
-        
-        this.frameRateCap = 60;
-
         logError("started");
         requestAnimationFrame(this.update.bind(this));
 
@@ -339,7 +344,7 @@ class Main {
     // adds objects to the level from the 2d array
     generateLevel(level, layer) {
         level = level.reverse();
-        const types = {"X":"wall", " ":"air", "s":"spawn"}
+        const types = {"X":"wall", " ":"air", "s":"spawn", "w":"bg"}
         const size = 0.4
 
         for (let y = 0; y < level.length; y++) {
@@ -348,7 +353,7 @@ class Main {
 
                 if (type === "spawn") this.level[layer].push(new Player(new vec3(x*size,y*size,0)))
 
-                if (type === "wall") {
+                else if (type==="wall" || type==="bg") {
 
                     const up =    (y + 1 < level.length)    ? level[y + 1][x] === "X" : false;
                     const down =  (y - 1 >= 0)              ? level[y - 1][x] === "X" : false;
@@ -373,12 +378,15 @@ class Main {
     // runs every frame
     update(currentTime) {
     // try {
+        clearLog()
+        logError(`FPS: ${this.fps}`);
+        
         this.deltaTime = (currentTime - this.lastTime) / 1000
         this.lastTime = currentTime
 
         this.frames++;
         if (this.nextSecond < currentTime) {
-            logError(`FPS: ${this.frames}`);
+            this.fps = this.frames
             this.nextSecond = currentTime + 1000;
             this.frames = 0;
         };
@@ -405,12 +413,12 @@ class Main {
     }
 
     draw() {
-        this.ctx.fillStyle = "#181818ff";
+        this.ctx.fillStyle = colours[3]
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        this.drawLevel(this.level[this.levelLayer], dz=0);
-
-        this.drawLevel(this.level["second"], dz= -10);
+        this.drawLevel(this.level["second"], 10);
+        
+        this.drawLevel(this.level["main"], 0);
 
         this.drawUi();
 
@@ -494,22 +502,24 @@ class Main {
             mainColour
         );
     }
-    drawLevel(level, dz=0) {
-        const projectedObjects = this.projectObjects(level, dz=dz);
-        
+    drawLevel(level, dz) {
+        const projectedObjects = this.projectObjects([...level], dz);
+
         projectedObjects.sort((a, b) => b.distance - a.distance);
         
         for (const object of projectedObjects) {
             this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
         }
     }
-    projectObjects(objects, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height, dz=0) {
-        const fovRad = fov * Math.PI/180;
+    projectObjects(objects, dz, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height) {
+        const fovRad = (fov * Math.PI/180) /(dz+1);
         const f = w / (2 * Math.tan(fovRad/2));
+
+        logError(`project ${fovRad} ${w} ${h} ${dz}`)
 
         const projectedObjects = [];
         for (const obj of objects) {
-            obj.location.z += dz
+            obj.location.z = dz
 
             const allAdjacent = Object.entries({up:false,down:false,left:false,right:false,front:false})
 
@@ -555,7 +565,7 @@ class Main {
         let py = (-y / z) * f + h/2;
         return new vec3(px, py, 0)
     }
-    drawShape(points, textureId=-1, mainColour="#9c9c9cff", secondaryColour="#292929ff") {
+    drawShape(points, textureId=-1) {
         if (textureId == -1) {
             this.drawFace(points);
             return;
@@ -593,13 +603,13 @@ class Main {
                     interp(u1, v1),
                     interp(u0, v1),
                 ];
-                const colour = texture[y][x]==="#" ? mainColour : secondaryColour;
+                const colour = colours[parseInt(texture[y][x])];
 				this.drawFace(subPoints, colour);
 			}
 		}
 		
 	}
-    drawFace(points, colour="#d4d4d4ff") {//, outlineColour="#00a000", textureId=NaN) {
+    drawFace(points, colour) {
         this.ctx.beginPath();
 
         this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));

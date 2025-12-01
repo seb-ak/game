@@ -1,7 +1,11 @@
 export function logError(text) {
     const p = document.createElement("p");
     p.textContent = text;
-    // document.getElementById("console").appendChild(p);
+    document.getElementById("console").appendChild(p);
+    // document.getElementById("console").replaceChildren(p);
+}
+export function clearLog() {
+    const p = document.createElement("p");
     document.getElementById("console").replaceChildren(p);
 }
 
