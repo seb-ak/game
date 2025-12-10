@@ -5,6 +5,46 @@ try {
 
 const colours = ["#9c9c9cff", "#4e4e4eff", "#292929ff", "#181818ff"]
 
+class Quad {
+    constructor(vertices, texture) {
+        this.vertices3d = vert
+        this.distance = 0
+        this.texture
+        this.doCulling = true
+    }
+
+    project2d(f, w, h, cameraLoc, offset) {
+        let cullFace = true;
+        const vertices2d = [];
+
+        for (const point of this.vertices3d) {
+            const translatedPoint = point.sub(cameraLoc).sub(offset);
+            const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
+
+            if (this.isOnScreen(projectedPoint, w, h)) cullFace = false;
+        }
+        if (cullFace && this.doCulling) return
+        
+        const center = vertices3d[0].add(vertices3d[2]).div(2);
+        const distance = center.sub(cameraLoc).length();
+
+        return [vertices2d, distance, this.texture]
+    }
+
+    isOnScreen(point, w, h) {
+        return (
+            point.x > 0 && point.x < w &&
+            point.y > 0 && point.y < h
+        );
+    }
+
+    projectPoint({x, y, z}, f, w, h) {
+        let px = (x / z) * f + w/2;
+        let py = (-y / z) * f + h/2;
+        return new vec3(px, py, 0)
+    }
+}
+
 class gameObject {
     constructor(location) {
         this.type = ""
@@ -17,6 +57,8 @@ class gameObject {
         };
         this.size = new vec3(1,1,1);
         this.collision = false;
+
+        this.faces = []
     }
     
     getPoint() {
@@ -114,12 +156,18 @@ class levelTile extends gameObject {
 
         this.adjacent = adjacent;
         this.type = type;
-        this.texture = "none";
+        this.texture = this.type;
 
         this.size = new vec3(size,size,size)
 
         this.collision = true
-        // if (!adjacent.up && !adjacent.down && !adjacent.left && !adjacent.right) this.collision = false
+        if (adjacent.up && adjacent.down && adjacent.left && adjacent.right) this.collision = false
+
+        if (!this.adjacent.left)  this.faces.push(new Quad(this.getFaceVertecies("left"), this.texture))
+        if (!this.adjacent.right) this.faces.push(new Quad(this.getFaceVertecies("right"), this.texture))
+        if (!this.adjacent.up)    this.faces.push(new Quad(this.getFaceVertecies("up"), this.texture))
+        if (!this.adjacent.down)  this.faces.push(new Quad(this.getFaceVertecies("down"), this.texture))
+
     }
 
 }
@@ -131,6 +179,8 @@ class Player extends gameObject {
         this.size = new vec3(0.5,1,0.5);
         this.texture = "player";
         this.ticking = true;
+        
+        this.faces.push(new Quad(this.getFaceVertecies("frount"),"player"))
         
         this.location.z += this.size.z/2
 
@@ -416,18 +466,19 @@ class Main {
         this.ctx.fillStyle = colours[3]
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        this.drawLevel(this.level["second"], 10);
+
+        this.drawLevel(this.level["second"], new vec3(0, 0, 10));
         
-        this.drawLevel(this.level["main"], 0);
+        this.drawLevel(this.level["main"], new vec3(0, 0, 0));
 
         this.drawUi();
 
-        const palette = [
-            [15,56,15],   // dark green
-            [48,98,48],
-            [139,172,15],
-            [155,188,15]
-        ];
+        // const palette = [
+        //     [15,56,15],   // dark green
+        //     [48,98,48],
+        //     [139,172,15],
+        //     [155,188,15]
+        // ];
         // this.applyDitherAndPalette(this.ctx, this.screen.width, this.screen.height, palette);
     }
     // call after drawing a frame: applyDitherAndPalette(this.ctx, this.screen.width, this.screen.height, palette)
@@ -471,44 +522,43 @@ class Main {
 
 
     drawUi() {
-        const mainColour = "#00a000"
-        const secondaryColour = "#005000"
-        this.drawFace([ // top
-            new vec3(0,                 0,0),
-            new vec3(this.screen.width, 0,0),
-            new vec3(this.screen.width, this.screen.subscreen.y,0),
-            new vec3(0,                 this.screen.subscreen.y,0)],
-            mainColour
-        );
-        this.drawFace([ //left
-            new vec3(0,                       0,0),
-            new vec3(this.screen.subscreen.x, 0,0),
-            new vec3(this.screen.subscreen.x, this.screen.height,0),
-            new vec3(0,                       this.screen.height,0)],
-            mainColour
-        );
-        this.drawFace([ //bottom
-            new vec3(0,                 this.screen.subscreen.y + this.screen.subscreen.height,0),
-            new vec3(this.screen.width, this.screen.subscreen.y + this.screen.subscreen.height,0),
-            new vec3(this.screen.width, this.screen.height,0),
-            new vec3(0,                 this.screen.height,0)],
-            mainColour
-        );
-        this.drawFace([ //right
-            new vec3(this.screen.subscreen.x + this.screen.subscreen.width, 0,0),
-            new vec3(this.screen.width,                                     0,0),
-            new vec3(this.screen.width,                                     this.screen.height,0),
-            new vec3(this.screen.subscreen.x + this.screen.subscreen.width, this.screen.height,0)],
-            mainColour
-        );
     }
-    drawLevel(level, dz) {
-        const projectedObjects = this.projectObjects([...level], dz);
+    drawLevel(level, offset) {
+        // const projectedObjects = this.projectObjects([...level], dz);
 
-        projectedObjects.sort((a, b) => b.distance - a.distance);
         
-        for (const object of projectedObjects) {
-            this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
+        // for (const object of projectedObjects) {
+        //     this.drawShape(object.vertices, textureIndexes.indexOf(object.type));
+        // }
+        const w=this.screen.subscreen.width
+        const h=this.screen.subscreen.height
+        const fovRad = (fov * Math.PI/180) /(dz+1);
+        const f = w / (2 * Math.tan(fovRad/2));
+
+        const toDraw = {
+            vertices: [],
+            distance: [],
+            texture: []
+        }
+
+        for (const obj of level) {
+            for (const face of faces) {
+                const [
+                    face_vertices, 
+                    face_distance, 
+                    face_texture
+                ] = face.project2d(f, w, h, this.camera.location, offset)
+
+                toDraw.vertices.push(face_vertices)
+                toDraw.distance.push(face_distance)
+                toDraw.texture.push(face_texture)
+            }
+        }
+
+        toDraw.sort((a, b) => b.distance - a.distance);
+
+        for (let i = 0; i < toDraw.vertices.length, i++) {
+            this.drawShape(toDraw.vertices[i], toDraw.texture[i], toDraw.distance[i])
         }
     }
     projectObjects(objects, dz, fov=this.camera.fov, w=this.screen.subscreen.width, h=this.screen.subscreen.height) {
@@ -560,15 +610,30 @@ class Main {
         }
         return projectedObjects
     }
-    projectPoint({x, y, z}, f, w, h) {
-        let px = (x / z) * f + w/2;
-        let py = (-y / z) * f + h/2;
-        return new vec3(px, py, 0)
-    }
-    drawShape(points, textureId=-1) {
-        if (textureId == -1) {
-            this.drawFace(points);
-            return;
+
+    drawShape(vertices, texture, distance) {
+
+        function drawFace(points, colour) {
+            this.ctx.beginPath();
+
+            this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
+            for (let i=1; i < points.length; i++) {
+                this.ctx.lineTo(Math.round(points[i].x), Math.round(points[i].y));
+            }
+
+            // this.ctx.moveTo(points[0].x, points[0].y);
+            // for (let i=1; i < points.length; i++) {
+            //     this.ctx.lineTo(points[i].x, points[i].y);
+            // }
+
+            this.ctx.closePath();
+
+            this.ctx.fillStyle = colour;
+            this.ctx.fill();
+
+            // this.ctx.strokeStyle = colour;
+            // this.ctx.lineWidth = 1;
+            // this.ctx.stroke();
         }
 
         const texture = gameTextures[textureId];
@@ -604,33 +669,11 @@ class Main {
                     interp(u0, v1),
                 ];
                 const colour = colours[parseInt(texture[y][x])];
-				this.drawFace(subPoints, colour);
+				drawFace(subPoints, colour);
 			}
 		}
-		
 	}
-    drawFace(points, colour) {
-        this.ctx.beginPath();
 
-        this.ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
-        for (let i=1; i < points.length; i++) {
-            this.ctx.lineTo(Math.round(points[i].x), Math.round(points[i].y));
-        }
-
-        // this.ctx.moveTo(points[0].x, points[0].y);
-        // for (let i=1; i < points.length; i++) {
-        //     this.ctx.lineTo(points[i].x, points[i].y);
-        // }
-
-        this.ctx.closePath();
-
-        this.ctx.fillStyle = colour;
-        this.ctx.fill();
-
-        // this.ctx.strokeStyle = colour;
-        // this.ctx.lineWidth = 1;
-        // this.ctx.stroke();
-    }
 }
 
 const main = new Main();
