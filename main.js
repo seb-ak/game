@@ -1,4 +1,4 @@
-import { logError, clearLog, vec3 } from "./other.js";
+import { logError, clearLog, vec3, arrayFromTexture, loadImage } from "./other.js";
 import { level1, level2, level2_alt } from "./levels.js";
 import { gameTextures } from "./textures.js"
 try {
@@ -150,14 +150,14 @@ class gameObject {
 }
 
 class levelTile extends gameObject {
-    constructor(location, type, adjacent={up:false,down:false,left:false,right:false,front:false}, size=1) {
+    constructor(location, adjacent={up:false,down:false,left:false,right:false,front:false}, size=new vec3(1,1,1), colour="#ffffffff") {
         super(location);
 
         this.adjacent = adjacent;
         this.type = type;
-        this.texture = this.type;
+        this.texture = [colour];
 
-        this.size = new vec3(size,size,size)
+        this.size = size
 
         this.collision = true
         if (adjacent.up && adjacent.down && adjacent.left && adjacent.right) this.collision = false
@@ -351,6 +351,125 @@ class Player extends gameObject {
     }
 }
 
+class Level {
+    constructor(levelFolder, z) {
+        this.objects = [];
+        this.gridSize = 0.4;
+        this.z = z
+        
+        this.loaded = false;
+        this.texture = loadImage(`./levels/${levelFolder}/texture.png`);
+        this.textureArray = arrayFromTexture(`./levels/${levelFolder}/texture.png`);
+        
+        this.collision = arrayFromTexture(`./levels/${levelFolder}/collision.png`);
+        this.gridCollision = [];
+        
+        this.generateLevel();
+    }
+
+    generateLevel() {
+
+        for (let y = 0; y < this.collision.length; y++) {
+            this.gridCollision[y] = [];
+            for (let x = 0; x < this.collision[y].length; x++) {
+                const tile = [y][x]
+                
+                if (tile.hex === "#000000ff") {
+                    this.gridCollision[y][x] = true;
+                } else {
+                    this.gridCollision[y][x] = false;
+                }
+                
+                if (tile.hex === "#ff0000ff") {
+                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) )
+                }
+            }
+        }
+        
+
+        for (let y = 0; y < this.gridCollision.length; y++) {
+            for (let x = 0; x < this.gridCollision[y].length; x++) {
+
+                const up =    (y + 1 < gridCollision.length   ) ? gridCollision[y + 1][x] : false
+                const down =  (y - 1 >= 0                     ) ? gridCollision[y - 1][x] : false
+                const left =  (x - 1 >= 0                     ) ? gridCollision[y][x - 1] : false
+                const right = (x + 1 < gridCollision[y].length) ? gridCollision[y][x + 1] : false
+                
+                if (up && down && left && right) continue;
+
+                this.objects.push(new levelTile(
+                    new vec3(x*this.gridSize, y*this.gridSize, this.z),
+                    { up, down, left, right, front: false },
+                    new vec3(this.gridSize, this.gridSize, this.gridSize*4),
+                    this.textureArray[y][x].hex,
+                ));
+            
+            }
+        }
+    
+    }
+    
+    drawLevel(ctx, camera, fov) {
+
+        ctx.drawImage(this.texture, 0, 0, this.texture.width, this.texture.height);
+
+        const w=this.screen.subscreen.width
+        const h=this.screen.subscreen.height
+        const fovRad = fov * Math.PI/180;
+        const f = w / (2 * Math.tan(fovRad/2));
+        
+        const toDraw = {
+            vertices: [],
+            texture: [],
+            distance: [],
+            order: [],
+        }
+        
+        for (const obj of this.objects) {
+            for (const face of obj.faces) {
+                const [
+                    face_vertices, 
+                    face_distance, 
+                    face_texture
+                ] = face.project2d(f, w, h, this.camera.location, offset)
+                
+                if (face_vertices == "culled") continue;
+
+                toDraw.vertices.push(face_vertices)
+                toDraw.texture.push(face_texture)
+                toDraw.distance.push(face_distance)
+                toDraw.order.push(toDraw.order.length)
+            }
+        }
+        
+        toDraw.order.sort((a, b) => b - a)
+        
+        for (let i = 0; i < toDraw.order.length; i++) {
+            const o = toDraw.order[i]
+            this.drawQuad(toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
+        }
+    }
+
+    isCollidingWith(obj) {
+
+        const objPoints = obj.getPoint()
+        const checkPositions = [
+            objPoints.tl.div(this.gridSize),
+            objPoints.bl.div(this.gridSize),
+            objPoints.tr.div(this.gridSize),
+            objPoints.br.div(this.gridSize)
+        ]
+
+        for (const pos of checkPositions) {
+            const colliding = this.gridCollision[Math.floor(objPoints.y)][Math.floor(objPoints.x)]
+            if (colliding) { return true; }
+        }
+        return false;
+
+    }
+
+}
+
 class Main {
     constructor() {
         this.deltaTime = 1
@@ -376,8 +495,8 @@ class Main {
         this.ctx = this.canvas.getContext("2d");
         
         this.level = {
-            main:[],
-            second:[]
+            main: new Level("test", 0),
+            second: new Level("test", 10),
         };
         this.levelLayer = "main"
 
@@ -391,39 +510,39 @@ class Main {
     }
 
     // adds objects to the level from the 2d array
-    generateLevel(level, layer) {
-        level = level.reverse();
-        const types = {"X":"wall", " ":"air", "s":"spawn", "w":"bg"}
-        const solid = ["X","w"]
-        const size = 0.4
+    // generateLevel(level, layer) {
+    //     level = level.reverse();
+    //     const types = {"X":"wall", " ":"air", "s":"spawn", "w":"bg"}
+    //     const solid = ["X","w"]
+    //     const size = 0.4
 
-        for (let y = 0; y < level.length; y++) {
-            for (let x = 0; x < level[y].length; x++) {
-                const type = types[level[y][x]] || "air";
+    //     for (let y = 0; y < level.length; y++) {
+    //         for (let x = 0; x < level[y].length; x++) {
+    //             const type = types[level[y][x]] || "air";
 
-                if (type === "spawn") this.level[layer].push(new Player(new vec3(x*size,y*size,0)))
+    //             if (type === "spawn") this.level[layer].push(new Player(new vec3(x*size,y*size,0)))
 
-                else if (type==="wall" || type==="bg") {
+    //             else if (type==="wall" || type==="bg") {
 
-                    const up =    (y + 1 < level.length)    ? solid.includes(level[y + 1][x]) : false;
-                    const down =  (y - 1 >= 0)              ? solid.includes(level[y - 1][x]) : false;
-                    const left =  (x - 1 >= 0)              ? solid.includes(level[y][x - 1]) : false;
-                    const right = (x + 1 < level[y].length) ? solid.includes(level[y][x + 1]) : false;
+    //                 const up =    (y + 1 < level.length)    ? solid.includes(level[y + 1][x]) : false;
+    //                 const down =  (y - 1 >= 0)              ? solid.includes(level[y - 1][x]) : false;
+    //                 const left =  (x - 1 >= 0)              ? solid.includes(level[y][x - 1]) : false;
+    //                 const right = (x + 1 < level[y].length) ? solid.includes(level[y][x + 1]) : false;
 
-                    this.level[layer].push(new levelTile(
-                        new vec3(x*size, y*size, 0),
-                        type,
-                        {
-                            up, down, left, right,
-                            front: false,
-                        },
-                        size
-                    ));
+    //                 this.level[layer].push(new levelTile(
+    //                     new vec3(x*size, y*size, 0),
+    //                     type,
+    //                     {
+    //                         up, down, left, right,
+    //                         front: false,
+    //                     },
+    //                     size
+    //                 ));
 
-                }
-            }
-        }
-    }
+    //             }
+    //         }
+    //     }
+    // }
 
     // runs every frame
     update(currentTime) {
@@ -444,15 +563,16 @@ class Main {
 
         for (const obj of this.level[this.levelLayer]) {
 
-            if (obj.ticking) obj.tick(this.deltaTime, this.level[this.levelLayer]);
+            if (obj.ticking) {
+                obj.tick(this.deltaTime, this.level[this.levelLayer]);
+            }
+
             if (obj.type === "player") {
                 this.camera.location.x = obj.location.x
                 this.camera.location.y = obj.location.y+1.5
             }
 
         }
-
-        
 
         
         this.draw();
@@ -479,46 +599,8 @@ class Main {
 
     drawUi() {}
 
-    drawLevel(level, fov, offset) {
 
-        const w=this.screen.subscreen.width
-        const h=this.screen.subscreen.height
-        const fovRad = fov * Math.PI/180;
-        const f = w / (2 * Math.tan(fovRad/2));
-        
-        const toDraw = {
-            vertices: [],
-            texture: [],
-            distance: [],
-            order: [],
-        }
-        
-        for (const obj of level) {
-            for (const face of obj.faces) {
-                const [
-                    face_vertices, 
-                    face_distance, 
-                    face_texture
-                ] = face.project2d(f, w, h, this.camera.location, offset)
-                
-                if (face_vertices == "culled") continue;
-
-                toDraw.vertices.push(face_vertices)
-                toDraw.texture.push(face_texture)
-                toDraw.distance.push(face_distance)
-                toDraw.order.push(toDraw.order.length)
-            }
-        }
-        
-        toDraw.order.sort((a, b) => b - a)
-        
-        for (let i = 0; i < toDraw.order.length; i++) {
-            const o = toDraw.order[i]
-            this.drawQuad(toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
-        }
-    }
-
-    drawQuad(vertices, textureName, distance) {
+    drawQuad(vertices, texture, distance) {
         function drawSubQuad(ctx, points, colour) {
             ctx.beginPath();
             
@@ -533,7 +615,6 @@ class Main {
             
         }
         
-        const texture = gameTextures[textureName];
         const textureHeight = texture.length;
         const textureWidth = texture[0].length;
         
