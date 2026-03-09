@@ -359,7 +359,7 @@ class Level {
         
         this.loaded = false;
         this.texture = loadImage(`./levels/${levelFolder}/texture.png`);
-        this.textureArray = arrayFromTexture(`./levels/${levelFolder}/texture.png`);
+        this.textureArray = arrayFromTexture(`./levels/${levelFolder}/texture.png`).then(loaded ......));
         
         this.collision = arrayFromTexture(`./levels/${levelFolder}/collision.png`);
         this.gridCollision = [];
@@ -409,13 +409,13 @@ class Level {
     
     }
     
-    drawLevel(ctx, camera, fov) {
+    draw(ctx, camera, screen) {
 
         ctx.drawImage(this.texture, 0, 0, this.texture.width, this.texture.height);
 
-        const w=this.screen.subscreen.width
-        const h=this.screen.subscreen.height
-        const fovRad = fov * Math.PI/180;
+        const w=screen.width
+        const h=screen.height
+        const fovRad = camera.fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
         
         const toDraw = {
@@ -431,7 +431,7 @@ class Level {
                     face_vertices, 
                     face_distance, 
                     face_texture
-                ] = face.project2d(f, w, h, this.camera.location, offset)
+                ] = face.project2d(f, w, h, camera.location, offset)
                 
                 if (face_vertices == "culled") continue;
 
@@ -481,31 +481,28 @@ class Main {
         
         this.frameRateCap = 60;
 
-        this.screen = {
-            width: 192,
-            height: 144,
-            subscreen: {
-                x: 0,
-                y: 0,
-                width: 192,
-                height: 144,
-            }
-        };
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
         
+        this.screen = {
+            width: 192,
+            height: 144,
+        };
+        this.camera = {
+            location: new vec3(20,2,-4),
+            fov: 90
+        };
+        
         this.level = {
-            main: new Level("test", 0),
-            second: new Level("test", 10),
+            main: new Level("test1", 0),
+            // second: new Level("test1", 10),
         };
         this.levelLayer = "main"
 
-        this.camera = {
-            location: new vec3(20,2,-4),
-            fov: 90,
-        };
 
-        requestAnimationFrame(this.update.bind(this));
+        setTimeout(() => {
+            requestAnimationFrame(this.update.bind(this));
+        }, 1000*5)
 
     }
 
@@ -561,7 +558,7 @@ class Main {
         };
 
 
-        for (const obj of this.level[this.levelLayer]) {
+        for (const obj of this.level[this.levelLayer].objects) {
 
             if (obj.ticking) {
                 obj.tick(this.deltaTime, this.level[this.levelLayer]);
@@ -587,9 +584,9 @@ class Main {
         this.ctx.fillStyle = `#${bgColour}${bgColour}${bgColour}`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        this.drawLevel(this.level["second"], 90, new vec3(0, 0, -10));
+        // this.level["second"].draw(this.ctx, this.camera, this.screen);
         
-        this.drawLevel(this.level["main"], 90, new vec3(0, 0, 0));
+        this.level["main"].draw(this.ctx, this.camera, this.screen);
         
         this.drawUi();
         
