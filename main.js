@@ -1,7 +1,7 @@
 import { logError, clearLog, vec3, loadImage } from "./other.js";
 import { level1, level2, level2_alt } from "./levels.js";
 import { gameTextures } from "./textures.js"
-try {
+
 
 class Quad {
     constructor(vertices, texture) {
@@ -224,7 +224,6 @@ class Player extends gameObject {
     }
     
     tick(deltaTime, level) {
-        console.log("a")
         /////////////////////
         // movement logic //
         ///////////////////
@@ -397,18 +396,11 @@ class Level {
     }
 
     async load() {
-        console.log("loading...");
-
         this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
-        console.log(this.texture);
-        
         this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
-        console.log(this.collision);
 
         this.generateLevel();
-
         this.loaded = true;
-        console.log(this.loaded)
     }
 
     generateLevel() {
@@ -418,14 +410,9 @@ class Level {
             for (let x = 0; x < this.collision.array[y].length; x++) {
                 const tile = this.collision.array[y][x];
                 
-                if (tile.hex === "#000000ff") {
-                    this.gridCollision[y][x] = true;
-                } else {
-                    this.gridCollision[y][x] = false;
-                }
+                this.gridCollision[y][x] = (tile.hex === "#000000ff")
                 
                 if (tile.hex === "#ff0000ff") {
-                    console.log("player")
                     // this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) )
                     this.objects.push( new Player(new vec3(x*this.gridSize, y*this.gridSize + 2, 0)) )
                 }
@@ -433,22 +420,24 @@ class Level {
         }
 
 
-        for (let y = 0; y < this.gridCollision.length; y++) {
-            for (let x = 0; x < this.gridCollision[y].length; x++) {
+        for (let y = 0; y < this.texture.array.length; y++) {
+            for (let x = 0; x < this.texture.array[y].length; x++) {
 
-                const up =    (y + 1 < this.gridCollision.length   ) ? this.gridCollision[y + 1][x] : false
-                const down =  (y - 1 >= 0                          ) ? this.gridCollision[y - 1][x] : false
-                const left =  (x - 1 >= 0                          ) ? this.gridCollision[y][x - 1] : false
-                const right = (x + 1 < this.gridCollision[y].length) ? this.gridCollision[y][x + 1] : false
+                if (this.texture.array[y][x].a === 0) continue;
+
+                const up =    (y + 1 < this.texture.array.length   ) ? this.texture.array[y + 1][x].a!=0 : false
+                const down =  (y - 1 >= 0                          ) ? this.texture.array[y - 1][x].a!=0 : false
+                const left =  (x - 1 >= 0                          ) ? this.texture.array[y][x - 1].a!=0 : false
+                const right = (x + 1 < this.texture.array[y].length) ? this.texture.array[y][x + 1].a!=0 : false
                 
                 if (up && down && left && right) continue;
 
-                this.objects.push(new levelTile(
-                    new vec3(x*this.gridSize, y*this.gridSize, this.z),
-                    { up, down, left, right, front: false },
-                    new vec3(this.gridSize, this.gridSize, this.gridSize*4),
-                    this.texture.array[y][x].hex,
-                ));
+                const location = new vec3(x*this.gridSize, y*this.gridSize, this.z)
+                const adjacent = { up:up, down:down, left:left, right:right, front: false }
+                const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
+                const colour = this.texture.array[y][x].hex
+
+                this.objects.push(new levelTile(location, adjacent, size, colour));
             
             }
         }
@@ -593,7 +582,7 @@ class Main {
         
         this.level = {
             main: new Level("test1", 0),
-            // second: new Level("test1", 10),
+            second: new Level("test1", 10),
         };
         this.levelLayer = "main"
 
@@ -669,7 +658,4 @@ class Main {
 }
 
 const main = new Main();
-main.generateLevel(level2, "main");
-main.generateLevel(level2_alt, "second");
 
-} catch (e) {logError(e);}

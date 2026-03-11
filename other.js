@@ -62,15 +62,6 @@ export class vec3 {
     }
 }
 
-// export async function loadImage(path) {
-//     let img = new Image();
-//     img.onload = () => {
-//         return img
-//     }
-//     img.onerror = () => { return false }
-//     img.src = path;
-// }
-
 export async function loadImage(path) {
     // Source - https://stackoverflow.com/a/61516442
     // Posted by sney2002
