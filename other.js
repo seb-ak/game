@@ -62,23 +62,24 @@ export class vec3 {
     }
 }
 
-export async function loadImage(path) {
-    let img = new Image();
-    img.onload = () => {
-        return img
-    }
-    img.onerror = () => { return false }
-    img.src = path;
-}
+// export async function loadImage(path) {
+//     let img = new Image();
+//     img.onload = () => {
+//         return img
+//     }
+//     img.onerror = () => { return false }
+//     img.src = path;
+// }
 
-export async function arrayFromTexture(path) {
+export async function loadImage(path) {
     // Source - https://stackoverflow.com/a/61516442
     // Posted by sney2002
     // Retrieved 2026-03-04, License - CC BY-SA 4.0
     // modified to fit my needs
-
-    let img = new Image();
+    
     return new Promise(resolve => {
+        const img = new Image();
+
         img.onload = () => {
     
             var canvas = document.createElement("canvas");
@@ -106,15 +107,18 @@ export async function arrayFromTexture(path) {
                             imageData[i+3].toString(16).padStart(2,"0"),
                     }
     
-                    array[y][x] = data
+                    array[y][x] = data;
                     i += 4;
                 }
             }
     
             // console.log(array)
-            resolve(array);
+            resolve({
+                image: img,
+                array: array.reverse()
+            });
         }
         // img.onerror = () => { return false }
+        img.src = path;
     })
-    img.src = path;
 }

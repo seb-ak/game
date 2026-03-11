@@ -1,4 +1,4 @@
-import { logError, clearLog, vec3, arrayFromTexture, loadImage } from "./other.js";
+import { logError, clearLog, vec3, loadImage } from "./other.js";
 import { level1, level2, level2_alt } from "./levels.js";
 import { gameTextures } from "./textures.js"
 try {
@@ -154,12 +154,12 @@ class levelTile extends gameObject {
         super(location);
 
         this.adjacent = adjacent;
-        this.type = type;
+        this.type = "levelTile";
         this.texture = [colour];
 
         this.size = size
 
-        this.collision = true
+        this.collision = false
         if (adjacent.up && adjacent.down && adjacent.left && adjacent.right) this.collision = false
 
         if (!this.adjacent.left)  this.faces.push(new Quad(this.getFaceVertecies("left"), this.texture))
@@ -224,6 +224,7 @@ class Player extends gameObject {
     }
     
     tick(deltaTime, level) {
+        console.log("a")
         /////////////////////
         // movement logic //
         ///////////////////
@@ -311,7 +312,20 @@ class Player extends gameObject {
 
         // x collisons
         this.location.x += this.velocity.x * deltaTime
-        for (const obj of level) {
+        if (level.isCollidingWith(this)) {
+            if (this.velocity.x > 0) {
+                const diff = Math.floor(this.getPoint().br.x/level.gridSize)*level.gridSize - this.getPoint().br.x
+                this.location.x += diff;
+                this.velocity.x = 0;
+            }
+            else if (this.velocity.x < 0) {
+                const diff = Math.ceil(this.getPoint().bl.x/level.gridSize)*level.gridSize - this.getPoint().bl.x
+                this.location.x += diff;
+                this.velocity.x = 0;
+            }
+        }
+
+        for (const obj of level.objects) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
 
@@ -330,7 +344,21 @@ class Player extends gameObject {
         // y collisions
         this.onFloor = false;
         this.location.y += this.velocity.y * deltaTime
-        for (const obj of level) {
+        if (level.isCollidingWith(this)) {
+            if (this.velocity.y > 0) {
+                const diff = Math.floor(this.location.y/level.gridSize)*level.gridSize - this.location.y
+                this.location.y += diff;
+                this.velocity.y = 0;
+            }
+            else if (this.velocity.y < 0) {
+                const diff = Math.ceil(this.location.y/level.gridSize)*level.gridSize - this.location.y
+                this.location.y += diff;
+                this.velocity.y = 0;
+                this.onFloor = true;
+            }
+        }
+
+        for (const obj of level.objects) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
 
@@ -347,7 +375,7 @@ class Player extends gameObject {
             }
         }
 
-        this.faces[0].vertices = this.getFaceVertecies("front")
+        this.faces[0].vertices3d = this.getFaceVertecies("front")
     }
 }
 
@@ -355,24 +383,40 @@ class Level {
     constructor(levelFolder, z) {
         this.objects = [];
         this.gridSize = 0.4;
-        this.z = z
+        this.z = z;
+        this.levelFolder = levelFolder;
         
         this.loaded = false;
-        this.texture = loadImage(`./levels/${levelFolder}/texture.png`);
-        this.textureArray = arrayFromTexture(`./levels/${levelFolder}/texture.png`).then(loaded ......));
+        this.texture = undefined;
         
-        this.collision = arrayFromTexture(`./levels/${levelFolder}/collision.png`);
+        this.collision = undefined;
         this.gridCollision = [];
         
+        this.load();
+
+    }
+
+    async load() {
+        console.log("loading...");
+
+        this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
+        console.log(this.texture);
+        
+        this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
+        console.log(this.collision);
+
         this.generateLevel();
+
+        this.loaded = true;
+        console.log(this.loaded)
     }
 
     generateLevel() {
 
-        for (let y = 0; y < this.collision.length; y++) {
+        for (let y = 0; y < this.collision.array.length; y++) {
             this.gridCollision[y] = [];
-            for (let x = 0; x < this.collision[y].length; x++) {
-                const tile = [y][x]
+            for (let x = 0; x < this.collision.array[y].length; x++) {
+                const tile = this.collision.array[y][x];
                 
                 if (tile.hex === "#000000ff") {
                     this.gridCollision[y][x] = true;
@@ -381,19 +425,21 @@ class Level {
                 }
                 
                 if (tile.hex === "#ff0000ff") {
-                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) )
+                    console.log("player")
+                    // this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) )
+                    this.objects.push( new Player(new vec3(x*this.gridSize, y*this.gridSize + 2, 0)) )
                 }
             }
         }
-        
+
 
         for (let y = 0; y < this.gridCollision.length; y++) {
             for (let x = 0; x < this.gridCollision[y].length; x++) {
 
-                const up =    (y + 1 < gridCollision.length   ) ? gridCollision[y + 1][x] : false
-                const down =  (y - 1 >= 0                     ) ? gridCollision[y - 1][x] : false
-                const left =  (x - 1 >= 0                     ) ? gridCollision[y][x - 1] : false
-                const right = (x + 1 < gridCollision[y].length) ? gridCollision[y][x + 1] : false
+                const up =    (y + 1 < this.gridCollision.length   ) ? this.gridCollision[y + 1][x] : false
+                const down =  (y - 1 >= 0                          ) ? this.gridCollision[y - 1][x] : false
+                const left =  (x - 1 >= 0                          ) ? this.gridCollision[y][x - 1] : false
+                const right = (x + 1 < this.gridCollision[y].length) ? this.gridCollision[y][x + 1] : false
                 
                 if (up && down && left && right) continue;
 
@@ -401,7 +447,7 @@ class Level {
                     new vec3(x*this.gridSize, y*this.gridSize, this.z),
                     { up, down, left, right, front: false },
                     new vec3(this.gridSize, this.gridSize, this.gridSize*4),
-                    this.textureArray[y][x].hex,
+                    this.texture.array[y][x].hex,
                 ));
             
             }
@@ -411,7 +457,7 @@ class Level {
     
     draw(ctx, camera, screen) {
 
-        ctx.drawImage(this.texture, 0, 0, this.texture.width, this.texture.height);
+        ctx.drawImage(this.texture.image, 0, 0, this.texture.image.width*this.gridSize, this.texture.image.height*this.gridSize);
 
         const w=screen.width
         const h=screen.height
@@ -431,7 +477,7 @@ class Level {
                     face_vertices, 
                     face_distance, 
                     face_texture
-                ] = face.project2d(f, w, h, camera.location, offset)
+                ] = face.project2d(f, w, h, camera.location, new vec3(0, 0, this.z))
                 
                 if (face_vertices == "culled") continue;
 
@@ -446,158 +492,11 @@ class Level {
         
         for (let i = 0; i < toDraw.order.length; i++) {
             const o = toDraw.order[i]
-            this.drawQuad(toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
+            this.drawQuad(ctx, toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
         }
     }
 
-    isCollidingWith(obj) {
-
-        const objPoints = obj.getPoint()
-        const checkPositions = [
-            objPoints.tl.div(this.gridSize),
-            objPoints.bl.div(this.gridSize),
-            objPoints.tr.div(this.gridSize),
-            objPoints.br.div(this.gridSize)
-        ]
-
-        for (const pos of checkPositions) {
-            const colliding = this.gridCollision[Math.floor(objPoints.y)][Math.floor(objPoints.x)]
-            if (colliding) { return true; }
-        }
-        return false;
-
-    }
-
-}
-
-class Main {
-    constructor() {
-        this.deltaTime = 1
-        this.lastTime = 0
-        this.fps = 0
-
-        this.frames = 0;
-        this.nextSecond = 0;
-        
-        this.frameRateCap = 60;
-
-        this.canvas = document.getElementById("gameCanvas");
-        this.ctx = this.canvas.getContext("2d");
-        
-        this.screen = {
-            width: 192,
-            height: 144,
-        };
-        this.camera = {
-            location: new vec3(20,2,-4),
-            fov: 90
-        };
-        
-        this.level = {
-            main: new Level("test1", 0),
-            // second: new Level("test1", 10),
-        };
-        this.levelLayer = "main"
-
-
-        setTimeout(() => {
-            requestAnimationFrame(this.update.bind(this));
-        }, 1000*5)
-
-    }
-
-    // adds objects to the level from the 2d array
-    // generateLevel(level, layer) {
-    //     level = level.reverse();
-    //     const types = {"X":"wall", " ":"air", "s":"spawn", "w":"bg"}
-    //     const solid = ["X","w"]
-    //     const size = 0.4
-
-    //     for (let y = 0; y < level.length; y++) {
-    //         for (let x = 0; x < level[y].length; x++) {
-    //             const type = types[level[y][x]] || "air";
-
-    //             if (type === "spawn") this.level[layer].push(new Player(new vec3(x*size,y*size,0)))
-
-    //             else if (type==="wall" || type==="bg") {
-
-    //                 const up =    (y + 1 < level.length)    ? solid.includes(level[y + 1][x]) : false;
-    //                 const down =  (y - 1 >= 0)              ? solid.includes(level[y - 1][x]) : false;
-    //                 const left =  (x - 1 >= 0)              ? solid.includes(level[y][x - 1]) : false;
-    //                 const right = (x + 1 < level[y].length) ? solid.includes(level[y][x + 1]) : false;
-
-    //                 this.level[layer].push(new levelTile(
-    //                     new vec3(x*size, y*size, 0),
-    //                     type,
-    //                     {
-    //                         up, down, left, right,
-    //                         front: false,
-    //                     },
-    //                     size
-    //                 ));
-
-    //             }
-    //         }
-    //     }
-    // }
-
-    // runs every frame
-    update(currentTime) {
-    // try {
-        clearLog()
-        logError(`FPS: ${this.fps}`);
-        
-        this.deltaTime = (currentTime - this.lastTime) / 1000
-        this.lastTime = currentTime
-
-        this.frames++;
-        if (this.nextSecond < currentTime) {
-            this.fps = this.frames
-            this.nextSecond = currentTime + 1000;
-            this.frames = 0;
-        };
-
-
-        for (const obj of this.level[this.levelLayer].objects) {
-
-            if (obj.ticking) {
-                obj.tick(this.deltaTime, this.level[this.levelLayer]);
-            }
-
-            if (obj.type === "player") {
-                this.camera.location.x = obj.location.x
-                this.camera.location.y = obj.location.y+1.5
-            }
-
-        }
-
-        
-        this.draw();
-        
-        
-        requestAnimationFrame(this.update.bind(this));
-    // } catch (e) {logError(e);}
-    }
-
-    draw() {
-        const bgColour = "1"
-        this.ctx.fillStyle = `#${bgColour}${bgColour}${bgColour}`
-        this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
-
-        // this.level["second"].draw(this.ctx, this.camera, this.screen);
-        
-        this.level["main"].draw(this.ctx, this.camera, this.screen);
-        
-        this.drawUi();
-        
-    }
-
-
-
-    drawUi() {}
-
-
-    drawQuad(vertices, texture, distance) {
+    drawQuad(ctx, vertices, texture, distance) {
         function drawSubQuad(ctx, points, colour) {
             ctx.beginPath();
             
@@ -644,10 +543,128 @@ class Main {
                     interp(u0, v1),
                 ];
                 const colour = `#${texture[y][x]}${texture[y][x]}${texture[y][x]}`;
-				drawSubQuad(this.ctx, subPoints, colour);
+				drawSubQuad(ctx, subPoints, colour);
 			}
 		}
 	}
+
+    isCollidingWith(obj) {
+
+        const objPoints = obj.getPoint()
+        const checkPositions = [
+            objPoints.tl.div(this.gridSize),
+            objPoints.bl.div(this.gridSize),
+            objPoints.tr.div(this.gridSize),
+            objPoints.br.div(this.gridSize)
+        ]
+
+        for (const pos of checkPositions) {
+            const colliding = this.gridCollision[Math.floor(pos.y)][Math.floor(pos.x)]
+            if (colliding) { return true; }
+        }
+        return false;
+
+    }
+
+}
+
+class Main {
+    constructor() {
+        this.deltaTime = 1
+        this.lastTime = 0
+        this.fps = 0
+
+        this.frames = 0;
+        this.nextSecond = 0;
+        
+        this.frameRateCap = 60;
+
+        this.canvas = document.getElementById("gameCanvas");
+        this.ctx = this.canvas.getContext("2d");
+        
+        this.screen = {
+            width: 192,
+            height: 144,
+        };
+        this.camera = {
+            location: new vec3(20,2,-4),
+            fov: 90
+        };
+        
+        this.level = {
+            main: new Level("test1", 0),
+            // second: new Level("test1", 10),
+        };
+        this.levelLayer = "main"
+
+
+        requestAnimationFrame(this.update.bind(this));
+
+    }
+
+    // runs every frame
+    update(currentTime) {
+    // try {
+        clearLog()
+        logError(`FPS: ${this.fps}`);
+        
+        this.deltaTime = (currentTime - this.lastTime) / 1000
+        this.lastTime = currentTime
+
+        this.frames++;
+        if (this.nextSecond < currentTime) {
+            this.fps = this.frames
+            this.nextSecond = currentTime + 1000;
+            this.frames = 0;
+        };
+
+        for (const level of Object.values(this.level)) {
+            if (!level.loaded) continue;
+
+            for (const obj of level.objects) {
+    
+                if (obj.ticking) {
+                    obj.tick(this.deltaTime, level);
+                }
+    
+                if (obj.type === "player") {
+                    this.camera.location.x = obj.location.x
+                    this.camera.location.y = obj.location.y+1.5
+                }
+    
+            }
+
+        }
+
+
+        
+        this.draw();
+        
+        
+        requestAnimationFrame(this.update.bind(this));
+    // } catch (e) {logError(e);}
+    }
+
+    draw() {
+        const bgColour = "1"
+        this.ctx.fillStyle = `#${bgColour}${bgColour}${bgColour}`
+        this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
+
+        if (this.level["second"] && this.level["second"].loaded) {
+            this.level["second"].draw(this.ctx, this.camera, this.screen);
+        }
+
+        if (this.level["main"] && this.level["main"].loaded) {
+            this.level["main"].draw(this.ctx, this.camera, this.screen);
+        }
+        
+
+        
+        this.drawUi();
+        
+    }
+
+    drawUi() {}
 
 }
 
