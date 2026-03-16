@@ -142,10 +142,10 @@ class gameObject {
             (objMin.x < thisMax.x && objMax.x > thisMin.x) &&
             (objMin.y < thisMax.y && objMax.y > thisMin.y)
         )
-        return (
-            (objMin.x <= thisMax.x && objMax.x >= thisMin.x) &&
-            (objMin.y <= thisMax.y && objMax.y >= thisMin.y)
-        )
+        // return (
+        //     (objMin.x <= thisMax.x && objMax.x >= thisMin.x) &&
+        //     (objMin.y <= thisMax.y && objMax.y >= thisMin.y)
+        // )
     }
 }
 
@@ -223,7 +223,7 @@ class Player extends gameObject {
         this.lastOnFloor = false;
     }
     
-    tick(deltaTime, level) {
+    doInputs(deltaTime) {
         /////////////////////
         // movement logic //
         ///////////////////
@@ -303,76 +303,62 @@ class Player extends gameObject {
         this.velocity.y -= gravity
 
         logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
-        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)}`)
+        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
+    }
 
+    doCollision(deltaTime, level) {
         //////////////////////
         // collision logic //
         ////////////////////
-
-        // x collisons
+        const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
+        const smallOffset = 0.0001
+        // x collisons //
         this.location.x += this.velocity.x * deltaTime
-        if (level.isCollidingWith(this)) {
-            if (this.velocity.x > 0) {
-                const diff = Math.floor(this.getPoint().br.x/level.gridSize)*level.gridSize - this.getPoint().br.x
-                this.location.x += diff;
-                this.velocity.x = 0;
-            }
-            else if (this.velocity.x < 0) {
-                const diff = Math.ceil(this.getPoint().bl.x/level.gridSize)*level.gridSize - this.getPoint().bl.x
-                this.location.x += diff;
-                this.velocity.x = 0;
-            }
-        }
 
-        for (const obj of level.objects) {
+        for (const obj of collisionObjects) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
 
             if (this.velocity.x > 0) {
-                const diff = obj.getPoint().bl.x - this.getPoint().br.x
+                const diff = obj.getPoint().bl.x - this.getPoint().br.x - smallOffset
                 this.location.x += diff;
                 this.velocity.x = 0;
             }
             else if (this.velocity.x < 0) {
-                const diff = obj.getPoint().br.x - this.getPoint().bl.x
+                const diff = obj.getPoint().br.x - this.getPoint().bl.x + smallOffset
                 this.location.x += diff;
                 this.velocity.x = 0;
             }
         }
 
-        // y collisions
+        // y collisions //
         this.onFloor = false;
         this.location.y += this.velocity.y * deltaTime
-        if (level.isCollidingWith(this)) {
-            if (this.velocity.y > 0) {
-                const diff = Math.floor(this.location.y/level.gridSize)*level.gridSize - this.location.y
-                this.location.y += diff;
-                this.velocity.y = 0;
-            }
-            else if (this.velocity.y < 0) {
-                const diff = Math.ceil(this.location.y/level.gridSize)*level.gridSize - this.location.y
-                this.location.y += diff;
-                this.velocity.y = 0;
-                this.onFloor = true;
-            }
-        }
 
-        for (const obj of level.objects) {
+        for (const obj of collisionObjects) {
             if (!obj.collision) continue;
             if (!this.isCollidingWith(obj)) continue;
 
             if (this.velocity.y > 0) {
-                const diff = obj.getPoint().bl.y - this.getPoint().tl.y
+                const diff = obj.getPoint().bl.y - this.getPoint().tl.y - smallOffset
                 this.location.y += diff;
                 this.velocity.y = 0;
             }
             else if (this.velocity.y < 0) {
-                const diff = obj.getPoint().tl.y - this.getPoint().bl.y
+                const diff = obj.getPoint().tl.y - this.getPoint().bl.y + smallOffset
                 this.location.y += diff;
                 this.velocity.y = 0;
                 this.onFloor = true;
             }
         }
+        logError(`after collision: vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
+
+    }
+
+    tick(deltaTime, level) {
+
+        this.doInputs(deltaTime);
+        this.doCollision(deltaTime, level);
 
         this.faces[0].vertices3d = this.getFaceVertecies("front")
     }
@@ -380,16 +366,19 @@ class Player extends gameObject {
 
 class Level {
     constructor(levelFolder, z) {
-        this.objects = [];
-        this.gridSize = 0.4;
-        this.z = z;
         this.levelFolder = levelFolder;
+        this.z = z;
+
+        this.objects = [];
+        this.gridSize = 0.2;
+        this.gridCollision = [];
+        this.gridObjects = [];
+        this.mainQuad
         
         this.loaded = false;
         this.texture = undefined;
         
         this.collision = undefined;
-        this.gridCollision = [];
         
         this.load();
 
@@ -398,6 +387,16 @@ class Level {
     async load() {
         this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
         this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
+        const width = this.texture.array[0].length * this.gridSize;
+        const height = this.texture.array.length * this.gridSize;
+        const z = 0
+        this.mainQuad = new Quad([
+            new vec3(0,     0,      z),
+            new vec3(width, 0,      z),
+            new vec3(width, height, z),
+            new vec3(0,     height, z),
+        ]);
+        this.mainQuad.doCulling = false;
 
         this.generateLevel();
         this.loaded = true;
@@ -407,14 +406,21 @@ class Level {
 
         for (let y = 0; y < this.collision.array.length; y++) {
             this.gridCollision[y] = [];
+            this.gridObjects[y] = [];
             for (let x = 0; x < this.collision.array[y].length; x++) {
                 const tile = this.collision.array[y][x];
                 
                 this.gridCollision[y][x] = (tile.hex === "#000000ff")
+                if (this.gridCollision[y][x]) {
+                    const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
+                    o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
+                    o.collision = true;
+                    this.gridObjects[y][x] = o;
+                }
                 
                 if (tile.hex === "#ff0000ff") {
-                    // this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) )
-                    this.objects.push( new Player(new vec3(x*this.gridSize, y*this.gridSize + 2, 0)) )
+                    // this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
+                    this.objects.push( new Player(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
                 }
             }
         }
@@ -445,8 +451,6 @@ class Level {
     }
     
     draw(ctx, camera, screen) {
-
-        ctx.drawImage(this.texture.image, 0, 0, this.texture.image.width*this.gridSize, this.texture.image.height*this.gridSize);
 
         const w=screen.width
         const h=screen.height
@@ -483,6 +487,20 @@ class Level {
             const o = toDraw.order[i]
             this.drawQuad(ctx, toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
         }
+
+        const [
+            face_vertices, 
+            face_distance, 
+            face_texture
+        ] = this.mainQuad.project2d(f, w, h, camera.location, new vec3(0, 0, this.z));
+
+        const x = face_vertices[0].x
+        const y = face_vertices[0].y
+        const width = face_vertices[2].x - x
+        const height = face_vertices[2].y - y
+        
+        ctx.drawImage(this.texture.image, x, y, width, height);
+
     }
 
     drawQuad(ctx, vertices, texture, distance) {
@@ -537,22 +555,54 @@ class Level {
 		}
 	}
 
-    isCollidingWith(obj) {
+    // isCollidingWith(obj) {
 
-        const objPoints = obj.getPoint()
-        const checkPositions = [
-            objPoints.tl.div(this.gridSize),
-            objPoints.bl.div(this.gridSize),
-            objPoints.tr.div(this.gridSize),
-            objPoints.br.div(this.gridSize)
-        ]
+    //     const objPoints = obj.getPoint()
+    //     const checkPositions = [
+    //         objPoints.tl.div(this.gridSize),
+    //         objPoints.bl.div(this.gridSize),
+    //         objPoints.tr.div(this.gridSize),
+    //         objPoints.br.div(this.gridSize),
 
-        for (const pos of checkPositions) {
-            const colliding = this.gridCollision[Math.floor(pos.y)][Math.floor(pos.x)]
-            if (colliding) { return true; }
+    //         objPoints.bl.add(new vec3(0, obj.size.y/2, 0)).div(this.gridSize),
+    //         objPoints.br.add(new vec3(0, obj.size.y/2, 0)).div(this.gridSize),
+    //     ]
+
+    //     for (const pos of checkPositions) {
+    //         const x = Math.floor(pos.x);
+    //         const y = Math.floor(pos.y);
+            
+    //         if (x < 0 || y < 0 || y >= this.gridCollision.length || x >= this.gridCollision[y].length) {
+    //             continue;
+    //         }
+            
+    //         const colliding = this.gridCollision[y][x]
+
+    //         if (colliding) { return true; }
+    //     }
+    //     return false;
+
+    // }
+
+    getCloseTo(obj) {
+        const close = []
+        const min = obj.getPoint().bl.sub(obj.size).div(this.gridSize)
+        const max = obj.getPoint().tr.add(obj.size).div(this.gridSize)
+
+        min.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(min.x)))
+        max.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(max.x)))
+        
+        min.y = Math.min(this.gridObjects.length, Math.max(0, Math.floor(min.y)))
+        max.y = Math.min(this.gridObjects.length, Math.max(0, Math.floor(max.y)))
+        
+        for (let y=min.y; y<max.y; y++) {
+            for (let x=min.x; x<max.x; x++) {
+                const o = this.gridObjects[y][x];
+                if (o) close.push(o);
+            }
         }
-        return false;
 
+        return close;
     }
 
 }
@@ -570,6 +620,7 @@ class Main {
 
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
+        this.ctx.imageSmoothingEnabled = false;
         
         this.screen = {
             width: 192,
@@ -582,7 +633,7 @@ class Main {
         
         this.level = {
             main: new Level("test1", 0),
-            second: new Level("test1", 10),
+            // second: new Level("test1", 10),
         };
         this.levelLayer = "main"
 
