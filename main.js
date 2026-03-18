@@ -441,7 +441,12 @@ class Level {
                 const location = new vec3(x*this.gridSize, y*this.gridSize, this.z)
                 const adjacent = { up:up, down:down, left:left, right:right, front: false }
                 const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
-                const colour = this.texture.array[y][x].hex
+                // const colour = this.texture.array[y][x].hex
+                const colour = this.texture.array[y][x].r.toString(16)
+                
+                // if (colour == "7f") continue
+                // if (colour == "c3") continue
+                // dconsole.log(colour)
 
                 this.objects.push(new levelTile(location, adjacent, size, colour));
             
@@ -505,6 +510,10 @@ class Level {
 
     drawQuad(ctx, vertices, texture, distance) {
         function drawSubQuad(ctx, points, colour) {
+            
+            ctx.lineWidth = 2;
+ctx.lineCap = "round";
+ctx.lineJoin = "round";
             ctx.beginPath();
             
             ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
@@ -514,10 +523,18 @@ class Level {
             
             ctx.closePath();
             ctx.fillStyle = colour;
+            ctx.strokeStyle = colour;
             ctx.fill();
+            ctx.stroke();
             
         }
         
+        if (texture.length==1) {
+            const colour = `#${texture[0][0]}${texture[0][0]}${texture[0][0]}`;
+            drawSubQuad(ctx, vertices, colour);
+            return
+        }
+
         const textureHeight = texture.length;
         const textureWidth = texture[0].length;
         
@@ -668,8 +685,16 @@ class Main {
                 }
     
                 if (obj.type === "player") {
-                    this.camera.location.x = obj.location.x
-                    this.camera.location.y = obj.location.y+1.5
+                    const vel = new vec3(
+                        obj.velocity.x / 4,
+                        -obj.velocity.y / 30,
+                        obj.velocity.z / 4
+                    )
+                    const diff = obj.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8)
+                    this.camera.location.x += diff.x
+                    this.camera.location.y += diff.y
+                    // this.camera.location.x = obj.location.x
+                    // this.camera.location.y = obj.location.y+1.5
                 }
     
             }
