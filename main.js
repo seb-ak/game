@@ -1,368 +1,5 @@
-import { logError, clearLog, vec3, loadImage } from "./other.js";
-import { level1, level2, level2_alt } from "./levels.js";
-import { gameTextures } from "./textures.js"
-
-
-class Quad {
-    constructor(vertices, texture) {
-        this.vertices3d = vertices
-        this.distance = 0
-        this.texture = texture
-        this.doCulling = true
-    }
-
-    project2d(f, w, h, cameraLoc, offset) {
-        let cullFace = true;
-        const vertices2d = [];
-        for (const point of this.vertices3d) {
-            const translatedPoint = point.sub(cameraLoc).sub(offset);
-            const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
-
-            vertices2d.push(projectedPoint)
-            
-            if (this.isOnScreen(projectedPoint, w, h)) cullFace = false;
-        }
-        if (cullFace && this.doCulling) return ["culled","culled","culled"]
-        
-        const center = this.vertices3d[0].add(this.vertices3d[2]).div(2);
-        const distance = center.sub(cameraLoc).length();
-
-        return [vertices2d, distance, this.texture]
-    }
-
-    isOnScreen(point, w, h) {
-        return (
-            point.x > 0 && point.x < w &&
-            point.y > 0 && point.y < h
-        );
-    }
-
-    projectPoint({x, y, z}, f, w, h) {
-        let px = (x / z) * f + w/2;
-        let py = (-y / z) * f + h/2;
-        return new vec3(px, py, 0)
-    }
-}
-
-class gameObject {
-    constructor(location) {
-        this.type = ""
-        this.location = location
-        this.collision = {
-            up:true,
-            down:true,
-            left:true,
-            right:true,
-        };
-        this.size = new vec3(1,1,1);
-        this.collision = false;
-
-        this.faces = []
-    }
-    
-    getPoint() {
-        const center = this.location.add(this.size.mult(-0.5));
-        return {
-            center: center,
-            tl: this.location.add(new vec3(0,           this.size.y, 0)),
-            bl: this.location,
-            tr: this.location.add(new vec3(this.size.x, this.size.y, 0)),
-            br: this.location.add(new vec3(this.size.x, 0,           0))
-        }
-    }
-    getFaceVertecies(face) {
-        switch(face) {
-            case "front":
-                return [
-                    this.getPoint().tl,
-                    this.getPoint().tr,
-                    this.getPoint().br,
-                    this.getPoint().bl,
-                ];
-            case "left":
-                return [
-                    this.getPoint().tl,
-                    this.getPoint().tl.add(new vec3(0,0,1)),
-                    this.getPoint().bl.add(new vec3(0,0,1)),
-                    this.getPoint().bl,
-                ];
-            case "right":
-                return [
-                    this.getPoint().tr,
-                    this.getPoint().tr.add(new vec3(0,0,1)),
-                    this.getPoint().br.add(new vec3(0,0,1)),
-                    this.getPoint().br,
-                ];
-            case "up":
-                return [
-                    this.getPoint().tl,
-                    this.getPoint().tl.add(new vec3(0,0,1)),
-                    this.getPoint().tr.add(new vec3(0,0,1)),
-                    this.getPoint().tr,
-                ];
-            case "down":
-                return [
-                    this.getPoint().bl,
-                    this.getPoint().bl.add(new vec3(0,0,1)),
-                    this.getPoint().br.add(new vec3(0,0,1)),
-                    this.getPoint().br,
-                ];
-            default:
-                return [];
-        }
-    }
-
-    isCollidingWith(obj) {
-        // AABB collison - Axis-Aligned Bounding Box
-        // If all axis colliding
-        // Xcolliding: A_minX <= B_maxX && A_maxX >= B_minX
-        // Ycolliding: A_minY <= B_maxY && A_maxY >= B_minY
-
-        const objPoints = obj.getPoint()
-        const objMax = {
-            x: Math.max(objPoints.tl.x, objPoints.tr.x),
-            y: Math.max(objPoints.tl.y, objPoints.bl.y)
-        }
-        const objMin = {
-            x: Math.min(objPoints.tl.x, objPoints.tr.x),
-            y: Math.min(objPoints.tl.y, objPoints.bl.y)
-        }
-
-        const thisPoints = this.getPoint()
-        const thisMax = {
-            x: Math.max(thisPoints.tl.x, thisPoints.tr.x),
-            y: Math.max(thisPoints.tl.y, thisPoints.bl.y)
-        }
-        const thisMin = {
-            x: Math.min(thisPoints.tl.x, thisPoints.tr.x),
-            y: Math.min(thisPoints.tl.y, thisPoints.bl.y)
-        }
-
-        return (
-            (objMin.x < thisMax.x && objMax.x > thisMin.x) &&
-            (objMin.y < thisMax.y && objMax.y > thisMin.y)
-        )
-        // return (
-        //     (objMin.x <= thisMax.x && objMax.x >= thisMin.x) &&
-        //     (objMin.y <= thisMax.y && objMax.y >= thisMin.y)
-        // )
-    }
-}
-
-class levelTile extends gameObject {
-    constructor(location, adjacent={up:false,down:false,left:false,right:false,front:false}, size=new vec3(1,1,1), colour="#ffffffff") {
-        super(location);
-
-        this.adjacent = adjacent;
-        this.type = "levelTile";
-        this.texture = [colour];
-
-        this.size = size
-
-        this.collision = false
-        if (adjacent.up && adjacent.down && adjacent.left && adjacent.right) this.collision = false
-
-        if (!this.adjacent.left)  this.faces.push(new Quad(this.getFaceVertecies("left"), this.texture))
-        if (!this.adjacent.right) this.faces.push(new Quad(this.getFaceVertecies("right"), this.texture))
-        if (!this.adjacent.up)    this.faces.push(new Quad(this.getFaceVertecies("up"), this.texture))
-        if (!this.adjacent.down)  this.faces.push(new Quad(this.getFaceVertecies("down"), this.texture))
-
-    }
-
-}
-
-class Player extends gameObject {
-    constructor(location) {
-        super(location)
-        this.type = "player";
-        this.size = new vec3(0.5,1,0.5);
-        this.texture = "player";
-        this.ticking = true;
-        
-        this.faces.push(new Quad(this.getFaceVertecies("front"),this.texture))
-
-        this.location.z += this.size.z/2
-
-        this.pressedInputs = {
-            up:   {keys:["w",],active:false},
-            down: {keys:["s",],active:false},
-            left: {keys:["a",],active:false},
-            right:{keys:["d",],active:false},
-            jump: {keys:[" ",],active:false},
-            dash: {keys:["shift",],active:false},
-        }
-        document.addEventListener("keydown", (event) => {
-            for (const input of Object.values(this.pressedInputs)) {
-                const key = event.key.toLowerCase();
-                if ( input.keys.includes(key) ) input.active = true;
-            }
-        });
-        document.addEventListener("keyup", (event) => {
-            for (const input of Object.values(this.pressedInputs)) {
-                const key = event.key.toLowerCase();
-                if ( input.keys.includes(key) ) input.active = false;
-            }
-        });
-
-        this.jumpForce = 7;
-        this.baseGravity = 0.5;
-        this.jumpTime = 0;
-        this.maxJumpTime = 170;
-
-        this.cyoteTime = 0;
-        this.maxCyoteTime = 200;
-        
-        this.velocity = new vec3(0, 0, 0);
-        this.onFloor = false;
-
-        this.acceleration = new vec3(0.1, 0, 0)
-        this.deceleration = new vec3(0.5, 0, 0)
-        this.maxVel = new vec3(6, Infinity, Infinity)
-
-        this.justJumped = false;
-        this.lastOnFloor = false;
-    }
-    
-    doInputs(deltaTime) {
-        /////////////////////
-        // movement logic //
-        ///////////////////
-        const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
-        
-        // base acceleration
-        let dx = xInput*this.acceleration.x
-
-        // if switching direction switch faster
-        if (Math.sign(xInput) != Math.sign(this.velocity)) {
-            dx *= 5
-        }
-
-        if (!this.onFloor) {
-            dx *= 0.6
-        }
-
-        this.velocity.x += dx
-        this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
-
-        // if not moving decelerate
-        if (dx === 0 && this.velocity.x !== 0) {
-            let decelerate = this.deceleration.x
-            if (!this.onFloor) decelerate *= 1.4
-            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
-            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
-        }
-
-        // if just hit floor decelerate
-        if (this.onFloor && !this.lastOnFloor) {
-            let decelerate = this.deceleration.x * 5
-            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
-            if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
-        }
-        this.lastOnFloor = this.onFloor
-
-        ////////////////////
-        // jumping logic //
-        //////////////////
-        if (this.cyoteTime > this.maxCyoteTime) this.cyoteTime = 0
-        if (this.cyoteTime > 0) this.cyoteTime += deltaTime * 1000
-        else if (this.onFloor) this.cyoteTime = deltaTime * 1000
-        else this.cyoteTime = 0
-        
-        // hold jump to go higher
-        if (this.pressedInputs.jump.active && this.jumpTime > 0 && this.jumpTime < this.maxJumpTime) {
-            this.velocity.y = this.jumpForce
-            this.jumpTime += deltaTime * 1000
-        } else {
-            this.jumpTime = 0
-        }
-        
-        // start jump
-        const canJump = this.cyoteTime > 0 && !this.justJumped
-        if (canJump && this.pressedInputs.jump.active) {
-            this.jumpTime += deltaTime * 1000
-            this.velocity.y = this.jumpForce
-            this.cyoteTime = 0
-            this.justJumped = true
-        }
-        
-        if (!this.pressedInputs.jump.active) {
-            this.justJumped = false
-        }
-
-        ////////////////////
-        // gravity logic //
-        //////////////////
-        let gravity = this.baseGravity
-        const threshold = 3;
-        // increase gravity when falling
-        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.6; logError("gravity: high");}
-        // decrease gravity at peak of jump
-        else if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("gravity: low");}
-        else {gravity = this.baseGravity; logError("gravity: normal")}
-
-        this.velocity.y -= gravity
-
-        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
-        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-    }
-
-    doCollision(deltaTime, level) {
-        //////////////////////
-        // collision logic //
-        ////////////////////
-        const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
-        const smallOffset = 0.0001
-        // x collisons //
-        this.location.x += this.velocity.x * deltaTime
-
-        for (const obj of collisionObjects) {
-            if (!obj.collision) continue;
-            if (!this.isCollidingWith(obj)) continue;
-
-            if (this.velocity.x > 0) {
-                const diff = obj.getPoint().bl.x - this.getPoint().br.x - smallOffset
-                this.location.x += diff;
-                this.velocity.x = 0;
-            }
-            else if (this.velocity.x < 0) {
-                const diff = obj.getPoint().br.x - this.getPoint().bl.x + smallOffset
-                this.location.x += diff;
-                this.velocity.x = 0;
-            }
-        }
-
-        // y collisions //
-        this.onFloor = false;
-        this.location.y += this.velocity.y * deltaTime
-
-        for (const obj of collisionObjects) {
-            if (!obj.collision) continue;
-            if (!this.isCollidingWith(obj)) continue;
-
-            if (this.velocity.y > 0) {
-                const diff = obj.getPoint().bl.y - this.getPoint().tl.y - smallOffset
-                this.location.y += diff;
-                this.velocity.y = 0;
-            }
-            else if (this.velocity.y < 0) {
-                const diff = obj.getPoint().tl.y - this.getPoint().bl.y + smallOffset
-                this.location.y += diff;
-                this.velocity.y = 0;
-                this.onFloor = true;
-            }
-        }
-        logError(`after collision: vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-
-    }
-
-    tick(deltaTime, level) {
-
-        this.doInputs(deltaTime);
-        this.doCollision(deltaTime, level);
-
-        this.faces[0].vertices3d = this.getFaceVertecies("front")
-    }
-}
+import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
+import { gameObject, levelTile, SpawnPoint, Player } from "./gameObjects.js";
 
 class Level {
     constructor(levelFolder, z) {
@@ -370,7 +7,7 @@ class Level {
         this.z = z;
 
         this.objects = [];
-        this.gridSize = 0.2;
+        this.gridSize = 0.3;
         this.gridCollision = [];
         this.gridObjects = [];
         this.mainQuad
@@ -419,8 +56,7 @@ class Level {
                 }
                 
                 if (tile.hex === "#ff0000ff") {
-                    // this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
-                    this.objects.push( new Player(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
+                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
                 }
             }
         }
@@ -478,6 +114,7 @@ class Level {
                 ] = face.project2d(f, w, h, camera.location, new vec3(0, 0, this.z))
                 
                 if (face_vertices == "culled") continue;
+                if (face_distance >= camera.maxQuadDist) continue;
 
                 toDraw.vertices.push(face_vertices)
                 toDraw.texture.push(face_texture)
@@ -508,12 +145,40 @@ class Level {
 
     }
 
+// Source - https://stackoverflow.com/a/44558286
+// Posted by Smuj Em, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-03-18, License - CC BY-SA 4.0
+/*
+// Create a buffer element to draw based on the Image img
+const buffer = document.createElement('canvas');
+buffer.width = img.width;
+buffer.height = img.height;
+const btx = buffer.getContext('2d');
+    
+// First draw your image to the buffer
+btx.drawImage(img, 0, 0);
+
+// Now we'll multiply a rectangle of your chosen color
+btx.fillStyle = '#FF7700';
+btx.globalCompositeOperation = 'multiply';
+btx.fillRect(0, 0, buffer.width, buffer.height);
+
+// Finally, fix masking issues you'll probably incur and optional globalAlpha
+btx.globalAlpha = 0.5;
+btx.globalCompositeOperation = 'destination-in';
+btx.drawImage(img, 0, 0);
+*/
+
     drawQuad(ctx, vertices, texture, distance) {
         function drawSubQuad(ctx, points, colour) {
             
             ctx.lineWidth = 2;
-ctx.lineCap = "round";
-ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.strokeStyle = colour;
+
+            ctx.fillStyle = colour;
+
             ctx.beginPath();
             
             ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
@@ -522,8 +187,6 @@ ctx.lineJoin = "round";
             }
             
             ctx.closePath();
-            ctx.fillStyle = colour;
-            ctx.strokeStyle = colour;
             ctx.fill();
             ctx.stroke();
             
@@ -645,13 +308,16 @@ class Main {
         };
         this.camera = {
             location: new vec3(20,2,-4),
-            fov: 90
+            fov: 90,
+            maxQuadDist: 20
         };
         
         this.level = {
             main: new Level("test1", 0),
-            // second: new Level("test1", 10),
+            second: new Level("test1", -25),
         };
+        this.player = new Player(new vec3(0,0,0))
+
         this.levelLayer = "main"
 
 
@@ -680,27 +346,26 @@ class Main {
 
             for (const obj of level.objects) {
     
-                if (obj.ticking) {
-                    obj.tick(this.deltaTime, level);
-                }
-    
-                if (obj.type === "player") {
-                    const vel = new vec3(
-                        obj.velocity.x / 4,
-                        -obj.velocity.y / 30,
-                        obj.velocity.z / 4
-                    )
-                    const diff = obj.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8)
-                    this.camera.location.x += diff.x
-                    this.camera.location.y += diff.y
-                    // this.camera.location.x = obj.location.x
-                    // this.camera.location.y = obj.location.y+1.5
-                }
+                if (!obj.ticking) continue;
+                obj.tick(this.deltaTime, level);
     
             }
-
         }
 
+        // move camera //
+
+        this.player.tick(this.deltaTime, this.level[this.player.level])
+        
+        const vel = new vec3(
+            this.player.velocity.x / 6,
+            0,//obj.velocity.y / 30,
+            this.player.velocity.z / 6
+        )
+        const diff = this.player.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8)
+        this.camera.location.x += diff.x
+        this.camera.location.y += diff.y
+        // this.camera.location.x = obj.location.x
+        // this.camera.location.y = obj.location.y+1.5
 
         
         this.draw();
@@ -733,5 +398,4 @@ class Main {
 
 }
 
-const main = new Main();
-
+new Main();

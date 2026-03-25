@@ -1,3 +1,4 @@
+
 export function logError(text) {
     const p = document.createElement("p");
     p.textContent = text;
@@ -8,6 +9,7 @@ export function clearLog() {
     const p = document.createElement("p");
     document.getElementById("console").replaceChildren(p);
 }
+
 
 export class vec3 {
     constructor(x=NaN, y=NaN, z=NaN) {
@@ -59,6 +61,47 @@ export class vec3 {
     normalise() {
         const len = this.length()
         return this.div(len)
+    }
+}
+
+export class Quad {
+    constructor(vertices, texture) {
+        this.vertices3d = vertices
+        this.distance = 0
+        this.texture = texture
+        this.doCulling = true
+    }
+
+    project2d(f, w, h, cameraLoc, offset) {
+        let cullFace = true;
+        const vertices2d = [];
+        for (const point of this.vertices3d) {
+            const translatedPoint = point.sub(cameraLoc).sub(offset);
+            const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
+
+            vertices2d.push(projectedPoint)
+            
+            if (this.isOnScreen(projectedPoint, w, h)) cullFace = false;
+        }
+        if (cullFace && this.doCulling) return ["culled","culled","culled"]
+        
+        const center = this.vertices3d[0].add(this.vertices3d[2]).div(2);
+        const distance = center.sub(cameraLoc).length();
+
+        return [vertices2d, distance, this.texture]
+    }
+
+    isOnScreen(point, w, h) {
+        return (
+            point.x > 0 && point.x < w &&
+            point.y > 0 && point.y < h
+        );
+    }
+
+    projectPoint({x, y, z}, f, w, h) {
+        let px = (x / z) * f + w/2;
+        let py = (-y / z) * f + h/2;
+        return new vec3(px, py, 0)
     }
 }
 
