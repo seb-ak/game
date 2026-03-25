@@ -41,6 +41,7 @@ class Level {
 
     generateLevel() {
 
+        // COLLISION //
         for (let y = 0; y < this.collision.array.length; y++) {
             this.gridCollision[y] = [];
             this.gridObjects[y] = [];
@@ -61,7 +62,7 @@ class Level {
             }
         }
 
-
+        // TEXTURE //
         for (let y = 0; y < this.texture.array.length; y++) {
             for (let x = 0; x < this.texture.array[y].length; x++) {
 
@@ -91,7 +92,7 @@ class Level {
     
     }
     
-    draw(ctx, camera, screen) {
+    draw(ctx, camera, screen, player) {
 
         const w=screen.width
         const h=screen.height
@@ -105,7 +106,10 @@ class Level {
             order: [],
         }
         
-        for (const obj of this.objects) {
+        const objects = [...this.objects]
+        if (player) objects.push(player)
+
+        for (const obj of objects) {
             for (const face of obj.faces) {
                 const [
                     face_vertices, 
@@ -145,29 +149,29 @@ class Level {
 
     }
 
-// Source - https://stackoverflow.com/a/44558286
-// Posted by Smuj Em, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-03-18, License - CC BY-SA 4.0
-/*
-// Create a buffer element to draw based on the Image img
-const buffer = document.createElement('canvas');
-buffer.width = img.width;
-buffer.height = img.height;
-const btx = buffer.getContext('2d');
-    
-// First draw your image to the buffer
-btx.drawImage(img, 0, 0);
+    // Source - https://stackoverflow.com/a/44558286
+    // Posted by Smuj Em, modified by community. See post 'Timeline' for change history
+    // Retrieved 2026-03-18, License - CC BY-SA 4.0
+    /*
+    // Create a buffer element to draw based on the Image img
+    const buffer = document.createElement('canvas');
+    buffer.width = img.width;
+    buffer.height = img.height;
+    const btx = buffer.getContext('2d');
+        
+    // First draw your image to the buffer
+    btx.drawImage(img, 0, 0);
 
-// Now we'll multiply a rectangle of your chosen color
-btx.fillStyle = '#FF7700';
-btx.globalCompositeOperation = 'multiply';
-btx.fillRect(0, 0, buffer.width, buffer.height);
+    // Now we'll multiply a rectangle of your chosen color
+    btx.fillStyle = '#FF7700';
+    btx.globalCompositeOperation = 'multiply';
+    btx.fillRect(0, 0, buffer.width, buffer.height);
 
-// Finally, fix masking issues you'll probably incur and optional globalAlpha
-btx.globalAlpha = 0.5;
-btx.globalCompositeOperation = 'destination-in';
-btx.drawImage(img, 0, 0);
-*/
+    // Finally, fix masking issues you'll probably incur and optional globalAlpha
+    btx.globalAlpha = 0.5;
+    btx.globalCompositeOperation = 'destination-in';
+    btx.drawImage(img, 0, 0);
+    */
 
     drawQuad(ctx, vertices, texture, distance) {
         function drawSubQuad(ctx, points, colour) {
@@ -296,7 +300,7 @@ class Main {
         this.frames = 0;
         this.nextSecond = 0;
         
-        this.frameRateCap = 60;
+        this.frameRateCap = 5;
 
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
@@ -381,11 +385,11 @@ class Main {
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
         if (this.level["second"] && this.level["second"].loaded) {
-            this.level["second"].draw(this.ctx, this.camera, this.screen);
+            this.level["second"].draw(this.ctx, this.camera, this.screen, this.player.level=="second"? this.player : undefined);
         }
 
         if (this.level["main"] && this.level["main"].loaded) {
-            this.level["main"].draw(this.ctx, this.camera, this.screen);
+            this.level["main"].draw(this.ctx, this.camera, this.screen, this.player.level=="main"? this.player : undefined);
         }
         
 

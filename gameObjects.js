@@ -146,7 +146,7 @@ export class Player extends gameObject {
 
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
-        this.texture = "player";
+        this.texture = ["5e","e5","5e","e5","5e"];
         this.ticking = true;
         
         this.faces.push(new Quad(this.getFaceVertecies("front"),this.texture))
