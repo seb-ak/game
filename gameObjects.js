@@ -192,8 +192,8 @@ export class Player extends gameObject {
         this.justJumped = false;
         this.lastOnFloor = false;
 
-        this.justDashed = false;
-        this.dashForce = 10;
+        this.canDash = false;
+        this.dashForce = 15;
 
         this.facingRotation = 0;
         this.facingVector = new vec3(1,0,0);
@@ -204,10 +204,13 @@ export class Player extends gameObject {
         // movement logic //
         ///////////////////
         const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
-        const yInput = this.pressedInputs.down.active - this.pressedInputs.up.active
+        const yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
         
-        this.facingRotation = Math.atan2(yInput, xInput);
-        this.facingVector = new vec3(xInput, yInput, 0).normalise()
+        if(xInput!==0 || yInput!==0) {
+            this.facingVector = new vec3(xInput, yInput, 0).normalise()
+            this.facingRotation = Math.atan2(yInput, xInput);
+        }
+        logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
         
         // base acceleration
         let dx = xInput*this.acceleration.x
@@ -221,8 +224,12 @@ export class Player extends gameObject {
             dx *= 0.6
         }
 
+        if (dx > 0) { if (this.velocity.x + dx > this.maxVel.x) dx = Math.max(0, this.maxVel.x - this.velocity.x) }
+        else if (dx < 0) { if (this.velocity.x + dx < -this.maxVel.x) dx = Math.min(0, -this.maxVel.x - this.velocity.x) }
+        logError(`dx: ${dx.toFixed(3)}`)
         this.velocity.x += dx
-        this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
+
+        // this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
 
         // if not moving decelerate
         if (dx === 0 && this.velocity.x !== 0) {
@@ -272,13 +279,17 @@ export class Player extends gameObject {
         /////////////////
         // Dash logic //
         ///////////////
-        if (this.onFloor) { this.justDashed = false; }
 
-        if (this.pressedInputs.dash.active && !this.justDashed) {
-            this.justDashed = true;
+        if (this.pressedInputs.dash.active) {
 
-            this.velocity.x += this.facingVector.x * this.dashForce
-            this.velocity.y += this.facingVector.y * this.dashForce
+            if (this.canDash) {
+                this.canDash = false;
+                this.velocity.x = this.facingVector.x * this.dashForce
+                this.velocity.y = this.facingVector.y * this.dashForce
+            }
+
+        } else if (this.onFloor) {
+            this.canDash = true;
         }
         
 
@@ -304,6 +315,9 @@ export class Player extends gameObject {
         //////////////////////
         // collision logic //
         ////////////////////
+
+        // this.velocity = this.velocity.add(new vec3((Math.random()-0.5)*0.01, (Math.random()-0.5)*0.01, 0))
+
         const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
         const smallOffset = 0.0001
         // x collisons //
@@ -361,6 +375,7 @@ export class Player extends gameObject {
         }
 
         this.doInputs(deltaTime);
+
         this.doCollision(deltaTime, level);
 
         this.faces[0].vertices3d = this.getFaceVertecies("front")

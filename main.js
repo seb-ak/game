@@ -269,9 +269,10 @@ class Level {
     // }
 
     getCloseTo(obj) {
+        const distance = obj.size.mult(3)
         const close = []
-        const min = obj.getPoint().bl.sub(obj.size).div(this.gridSize)
-        const max = obj.getPoint().tr.add(obj.size).div(this.gridSize)
+        const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
+        const max = obj.getPoint().tr.add(distance).div(this.gridSize)
 
         min.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(min.x)))
         max.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(max.x)))
