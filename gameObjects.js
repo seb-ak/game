@@ -191,6 +191,12 @@ export class Player extends gameObject {
 
         this.justJumped = false;
         this.lastOnFloor = false;
+
+        this.justDashed = false;
+        this.dashForce = 10;
+
+        this.facingRotation = 0;
+        this.facingVector = new vec3(1,0,0);
     }
     
     doInputs(deltaTime) {
@@ -198,6 +204,10 @@ export class Player extends gameObject {
         // movement logic //
         ///////////////////
         const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
+        const yInput = this.pressedInputs.down.active - this.pressedInputs.up.active
+        
+        this.facingRotation = Math.atan2(yInput, xInput);
+        this.facingVector = new vec3(xInput, yInput, 0).normalise()
         
         // base acceleration
         let dx = xInput*this.acceleration.x
@@ -258,6 +268,20 @@ export class Player extends gameObject {
         if (!this.pressedInputs.jump.active) {
             this.justJumped = false
         }
+
+        /////////////////
+        // Dash logic //
+        ///////////////
+        if (this.onFloor) { this.justDashed = false; }
+
+        if (this.pressedInputs.dash.active && !this.justDashed) {
+            this.justDashed = true;
+
+            this.velocity.x += this.facingVector.x * this.dashForce
+            this.velocity.y += this.facingVector.y * this.dashForce
+        }
+        
+
 
         ////////////////////
         // gravity logic //

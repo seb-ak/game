@@ -109,6 +109,7 @@ export async function loadImage(path) {
     // Source - https://stackoverflow.com/a/61516442
     // Posted by sney2002
     // Retrieved 2026-03-04, License - CC BY-SA 4.0
+    
     // modified to fit my needs
     
     return new Promise(resolve => {
