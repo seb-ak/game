@@ -312,48 +312,37 @@ export class Player extends gameObject {
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
     }
 
-    // new collison logic - minimum penetration depth
-    resolveCollision(objects) {        
-        for (const obj of objects) {
-            if (!obj.collision) continue;
-            if (!this.isCollidingWith(obj)) continue;
+    
+    resolveX(obj) {        
+        if (!obj.collision) return;
+        if (!this.isCollidingWith(obj)) return;
 
-            const thisCenter = this.getPoint().center
-            const objCenter = obj.getPoint().center
+        const thisCenter = this.getPoint().center
+        const objCenter = obj.getPoint().center
 
-            const overlap = new vec3(
-                (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
-                (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y),
-            )
-            console.log(`overlap x:${overlap.x.toFixed(3)} y:${overlap.y.toFixed(3)}`)
-            
-            if (overlap.x <= 0.001 || overlap.y <= 0.001) continue;
+        const overlap = (this.size.x / 2 + obj.size.x / 2) - Math.abs(thisCenter.x - objCenter.x)
+        if (overlap <= 0.001) return;
 
-            let resolveDir
+        const dir = (thisCenter.x < objCenter.x) ? -1 : 1
+        this.location.x += overlap * dir
+        this.velocity.x = 0;
+    }
 
-            const epsilon = 0.5
-            if (Math.abs(overlap.x - overlap.y) < epsilon) {
-                resolveDir = this.lastResolveDir
-            } else {
-                resolveDir = (overlap.x < overlap.y) ? 'x' : 'y'
-            }
-            logError(`overlap diff: ${Math.abs(overlap.x - overlap.y)}`)
-        
-            if (resolveDir === 'x') {
-                const dir = (thisCenter.x < objCenter.x) ? -1 : 1
-                this.location.x += overlap.x * dir
-                this.velocity.x = 0;
-                this.lastResolveDir = 'x'
-                logError(`COLLIDE X ${dir}`)
-            } else if (resolvedDir === 'y') {
-                const dir = (thisCenter.y < objCenter.y) ? -1 : 1
-                this.location.y += overlap.y * dir
-                this.velocity.y = 0;
-                if (dir === 1) this.onFloor = true;
-                this.lastResolveDir = 'y'
-                logError(`COLLIDE Y ${dir}`)
-            }
-        }
+    resolveY(obj) {        
+        if (!obj.collision) return;
+        if (!this.isCollidingWith(obj)) return;
+
+        const thisCenter = this.getPoint().center
+        const objCenter = obj.getPoint().center
+
+        const overlap = (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)                                                                                           
+        if (overlap <= 0.001) return;
+
+        const dir = (thisCenter.y < objCenter.y) ? -1 : 1
+        this.location.y += overlap * dir
+        this.velocity.y = 0;
+        if (dir === 1) this.onFloor = true;
+    
     }
 
     doCollision(deltaTime, level) {
@@ -361,75 +350,27 @@ export class Player extends gameObject {
 
         const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
 
-        // const steps = Math.ceil(Math.max(
-        //     Math.abs(this.velocity.x * deltaTime) / this.size.x, 
-        //     Math.abs(this.velocity.y * deltaTime) / this.size.y
-        // ))
+        const steps = Math.ceil(Math.max(
+            Math.abs(this.velocity.x * deltaTime) / this.size.x, 
+            Math.abs(this.velocity.y * deltaTime) / this.size.y
+        ))
+        logError(`movement steps: ${steps}`)
         
-        // for (let i=0; i<steps; i++) {
-            this.location.x += this.velocity.x * deltaTime// / steps
-            this.location.y += this.velocity.y * deltaTime// / steps
-            this.resolveCollision(collisionObjects)
+        for (let i=0; i<steps; i++) {
 
-        // }
+            this.location.x += this.velocity.x * deltaTime / steps;
+            for (const obj of collisionObjects) {
+                this.resolveX(obj);
+            }
+
+            this.onFloor = false;
+            this.location.y += this.velocity.y * deltaTime / steps;
+            for (const obj of collisionObjects) {
+                this.resolveY(obj);
+            }
+
+        }
     }
-
-    // doCollision(deltaTime, level) {
-    //     //////////////////////
-    //     // collision logic //
-    //     ////////////////////
-
-    //     const movingDir = this.velocity
-
-    //     const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
-    //     const smallOffset = 0.0001
-        
-    //     // x collisons //
-    //     this.location.x += this.velocity.x * deltaTime
-
-    //     for (const obj of collisionObjects) {
-    //         if (!obj.collision) continue;
-    //         if (!this.isCollidingWith(obj)) continue;
-
-    //         if (movingDir.x > 0) {
-    //             const diff = obj.getPoint().bl.x - this.getPoint().br.x// - smallOffset
-    //             this.location.x += diff;
-    //             this.velocity.x = 0;
-    //         }
-    //         else if (movingDir.x < 0) {
-    //             const diff = obj.getPoint().br.x - this.getPoint().bl.x// + smallOffset
-    //             this.location.x += diff;
-    //             this.velocity.x = 0;
-    //         } else {
-    //             console.log("x collision")
-    //         }
-    //     }
-
-    //     // y collisions //
-    //     this.onFloor = false;
-    //     this.location.y += this.velocity.y * deltaTime
-
-    //     for (const obj of collisionObjects) {
-    //         if (!obj.collision) continue;
-    //         if (!this.isCollidingWith(obj)) continue;
-
-    //         if (movingDir.y > 0) {
-    //             const diff = obj.getPoint().bl.y - this.getPoint().tl.y// - smallOffset
-    //             this.location.y += diff;
-    //             this.velocity.y = 0;
-    //         }
-    //         else if (movingDir.y < 0) {
-    //             const diff = obj.getPoint().tl.y - this.getPoint().bl.y// + smallOffset
-    //             this.location.y += diff;
-    //             this.velocity.y = 0;
-    //             this.onFloor = true;
-    //         } else {
-    //             console.log("y collision")
-    //         }
-    //     }
-    //     logError(`after collision: vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-
-    // }
 
     tick(deltaTime, level) {
 
