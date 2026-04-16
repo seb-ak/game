@@ -196,6 +196,8 @@ export class Player extends gameObject {
 
         this.facingRotation = 0;
         this.facingVector = new vec3(1,0,0);
+
+        this.lastResolveDir = ''
     }
     
     doInputs(deltaTime) {
@@ -327,18 +329,28 @@ export class Player extends gameObject {
             
             if (overlap.x <= 0.001 || overlap.y <= 0.001) continue;
 
-            if (overlap.x < overlap.y) {
-                // smaller overlap x dir => resolve in x
+            let resolveDir
+
+            const epsilon = 0.5
+            if (Math.abs(overlap.x - overlap.y) < epsilon) {
+                resolveDir = this.lastResolveDir
+            } else {
+                resolveDir = (overlap.x < overlap.y) ? 'x' : 'y'
+            }
+            logError(`overlap diff: ${Math.abs(overlap.x - overlap.y)}`)
+        
+            if (resolveDir === 'x') {
                 const dir = (thisCenter.x < objCenter.x) ? -1 : 1
                 this.location.x += overlap.x * dir
                 this.velocity.x = 0;
+                this.lastResolveDir = 'x'
                 logError(`COLLIDE X ${dir}`)
-            } else {
-                // smaller overlap y dir => resolve in y
+            } else if (resolvedDir === 'y') {
                 const dir = (thisCenter.y < objCenter.y) ? -1 : 1
                 this.location.y += overlap.y * dir
                 this.velocity.y = 0;
                 if (dir === 1) this.onFloor = true;
+                this.lastResolveDir = 'y'
                 logError(`COLLIDE Y ${dir}`)
             }
         }
