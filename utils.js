@@ -112,7 +112,7 @@ export async function loadImage(path) {
     
     // modified to fit my needs
     
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
         const img = new Image();
 
         img.onload = () => {
@@ -153,7 +153,10 @@ export async function loadImage(path) {
                 array: array.reverse()
             });
         }
-        // img.onerror = () => { return false }
+        img.onerror = () => { 
+            console.error(`Failed to load image: ${path}`);
+            reject(new Error(`Failed to load image: ${path}`));
+        }
         img.src = path;
     })
 }

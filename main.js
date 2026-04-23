@@ -22,21 +22,27 @@ class Level {
     }
 
     async load() {
-        this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
-        this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
-        const width = this.texture.array[0].length * this.gridSize;
-        const height = this.texture.array.length * this.gridSize;
-        const z = 0
-        this.mainQuad = new Quad([
-            new vec3(0,     0,      z),
-            new vec3(width, 0,      z),
-            new vec3(width, height, z),
-            new vec3(0,     height, z),
-        ]);
-        this.mainQuad.doCulling = false;
+        try {
+            this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
+            this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
+            const width = this.texture.array[0].length * this.gridSize;
+            const height = this.texture.array.length * this.gridSize;
+            const z = 0
+            this.mainQuad = new Quad([
+                new vec3(0,     0,      z),
+                new vec3(width, 0,      z),
+                new vec3(width, height, z),
+                new vec3(0,     height, z),
+            ]);
+            this.mainQuad.doCulling = false;
 
-        this.generateLevel();
-        this.loaded = true;
+            this.generateLevel();
+
+            this.loaded = true;
+
+        } catch (error) {
+            console.error(`Failed to load level ${this.levelFolder}:`, error);
+        }
     }
 
     generateLevel() {
@@ -57,7 +63,7 @@ class Level {
                 }
                 
                 if (tile.hex === "#ff0000ff") {
-                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0)) );
+                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
                 }
             }
         }
@@ -92,12 +98,28 @@ class Level {
     
     }
     
+    tick(deltaTime) {
+        if (!this.loaded) return;
+
+        for (const obj of this.objects) {
+            if (!obj.ticking) continue;
+            obj.tick(deltaTime, this);
+        }
+    }
+
     draw(ctx, camera, screen, player) {
 
         const w=screen.width
         const h=screen.height
         const fovRad = camera.fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
+
+        const res = 20;
+        const cameraLoc = new vec3(
+            Math.floor(camera.location.x*res)/res,
+            Math.floor(camera.location.y*res)/res,
+            Math.floor(camera.location.z*res)/res,
+        )
         
         const toDraw = {
             vertices: [],
@@ -115,7 +137,7 @@ class Level {
                     face_vertices, 
                     face_distance, 
                     face_texture
-                ] = face.project2d(f, w, h, camera.location, new vec3(0, 0, this.z))
+                ] = face.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z))
                 
                 if (face_vertices == "culled") continue;
                 if (face_distance >= camera.maxQuadDist) continue;
@@ -127,7 +149,8 @@ class Level {
             }
         }
         
-        toDraw.order.sort((a, b) => b - a)
+        toDraw.order.sort((a, b) => toDraw.distance[toDraw.order.indexOf(b)] - toDraw.distance[toDraw.order.indexOf(a)])
+        // toDraw.order.sort((a, b) => b - a)
         
         for (let i = 0; i < toDraw.order.length; i++) {
             const o = toDraw.order[i]
@@ -138,7 +161,7 @@ class Level {
             face_vertices, 
             face_distance, 
             face_texture
-        ] = this.mainQuad.project2d(f, w, h, camera.location, new vec3(0, 0, this.z));
+        ] = this.mainQuad.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z));
 
         const x = face_vertices[0].x
         const y = face_vertices[0].y
@@ -149,10 +172,11 @@ class Level {
 
     }
 
+    /*
     // Source - https://stackoverflow.com/a/44558286
     // Posted by Smuj Em, modified by community. See post 'Timeline' for change history
     // Retrieved 2026-03-18, License - CC BY-SA 4.0
-    /*
+    
     // Create a buffer element to draw based on the Image img
     const buffer = document.createElement('canvas');
     buffer.width = img.width;
@@ -239,35 +263,6 @@ class Level {
 		}
 	}
 
-    // isCollidingWith(obj) {
-
-    //     const objPoints = obj.getPoint()
-    //     const checkPositions = [
-    //         objPoints.tl.div(this.gridSize),
-    //         objPoints.bl.div(this.gridSize),
-    //         objPoints.tr.div(this.gridSize),
-    //         objPoints.br.div(this.gridSize),
-
-    //         objPoints.bl.add(new vec3(0, obj.size.y/2, 0)).div(this.gridSize),
-    //         objPoints.br.add(new vec3(0, obj.size.y/2, 0)).div(this.gridSize),
-    //     ]
-
-    //     for (const pos of checkPositions) {
-    //         const x = Math.floor(pos.x);
-    //         const y = Math.floor(pos.y);
-            
-    //         if (x < 0 || y < 0 || y >= this.gridCollision.length || x >= this.gridCollision[y].length) {
-    //             continue;
-    //         }
-            
-    //         const colliding = this.gridCollision[y][x]
-
-    //         if (colliding) { return true; }
-    //     }
-    //     return false;
-
-    // }
-
     getCloseTo(obj) {
         const distance = obj.size.mult(3)
         const close = []
@@ -330,45 +325,38 @@ class Main {
 
     }
 
-    // runs every frame
     update(currentTime) {
-    // try {
         clearLog()
-        logError(`FPS: ${this.fps}`);
         
-        this.deltaTime = (currentTime - this.lastTime) / 1000
-        this.lastTime = currentTime
-
-        this.frames++;
-        if (this.nextSecond < currentTime) {
-            this.fps = this.frames
-            this.nextSecond = currentTime + 1000;
-            this.frames = 0;
-        };
-
-        for (const level of Object.values(this.level)) {
-            if (!level.loaded) continue;
-
-            for (const obj of level.objects) {
+        {
+            logError(`FPS: ${this.fps}`);
+            
+            this.deltaTime = (currentTime - this.lastTime) / 1000
+            this.lastTime = currentTime
     
-                if (!obj.ticking) continue;
-                obj.tick(this.deltaTime, level);
-    
+            this.frames++;
+            if (this.nextSecond > currentTime) {
+                this.fps = this.frames
+                this.nextSecond = currentTime + 1000;
+                this.frames = 0;
             }
         }
 
-        // move camera //
+        for (const level of Object.values(this.level)) level.tick(this.deltaTime);
 
         this.player.tick(this.deltaTime, this.level[this.player.level])
-        
+
+        // move camera //
+                
         const vel = new vec3(
             this.player.velocity.x / 6,
             0,//obj.velocity.y / 30,
             this.player.velocity.z / 6
         )
-        const diff = this.player.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8)
+        const diff = this.player.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8).mult(this.deltaTime).mult(60)
         this.camera.location.x += diff.x
         this.camera.location.y += diff.y
+
         // this.camera.location.x = obj.location.x
         // this.camera.location.y = obj.location.y+1.5
 

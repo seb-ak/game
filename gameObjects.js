@@ -196,10 +196,15 @@ export class Player extends gameObject {
 
         this.facingRotation = 0;
         this.facingVector = new vec3(1,0,0);
-
-        this.lastResolveDir = ''
     }
     
+    spawn(level) {
+        for (const obj of level.objects) {
+            if (obj.type !== "SpawnPoint") continue;
+            this.location = obj.location;
+        }
+    }
+
     doInputs(deltaTime) {
         /////////////////////
         // movement logic //
@@ -285,8 +290,12 @@ export class Player extends gameObject {
 
             if (this.canDash) {
                 this.canDash = false;
-                this.velocity.x = this.facingVector.x * this.dashForce
-                this.velocity.y = this.facingVector.y * this.dashForce
+
+                // const dashVector = this.facingVector.add(new vec3(0,0.5,0)).normalise().mult(this.dashForce)
+                const dashVector = this.facingVector.mult(this.dashForce)
+
+                this.velocity.x = dashVector.x// * 1.5
+                this.velocity.y = dashVector.y
             }
 
         } else if (this.onFloor) {
@@ -311,7 +320,6 @@ export class Player extends gameObject {
         logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
     }
-
     
     resolveX(obj) {        
         if (!obj.collision) return;
@@ -320,14 +328,16 @@ export class Player extends gameObject {
         const thisCenter = this.getPoint().center
         const objCenter = obj.getPoint().center
 
-        const overlap = (this.size.x / 2 + obj.size.x / 2) - Math.abs(thisCenter.x - objCenter.x)
-        if (overlap <= 0.001) return;
+        const overlap = new vec3(
+            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
+            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
+        )
+        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
 
         const dir = (thisCenter.x < objCenter.x) ? -1 : 1
-        this.location.x += overlap * dir
+        this.location.x += overlap.x * dir
         this.velocity.x = 0;
     }
-
     resolveY(obj) {        
         if (!obj.collision) return;
         if (!this.isCollidingWith(obj)) return;
@@ -335,16 +345,17 @@ export class Player extends gameObject {
         const thisCenter = this.getPoint().center
         const objCenter = obj.getPoint().center
 
-        const overlap = (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)                                                                                           
-        if (overlap <= 0.001) return;
+        const overlap = new vec3(
+            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
+            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
+        )
+        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
 
         const dir = (thisCenter.y < objCenter.y) ? -1 : 1
-        this.location.y += overlap * dir
+        this.location.y += overlap.y * dir
         this.velocity.y = 0;
         if (dir === 1) this.onFloor = true;
-    
     }
-
     doCollision(deltaTime, level) {
         this.onFloor = false;
 
@@ -359,34 +370,23 @@ export class Player extends gameObject {
         for (let i=0; i<steps; i++) {
 
             this.location.x += this.velocity.x * deltaTime / steps;
-            for (const obj of collisionObjects) {
-                this.resolveX(obj);
-            }
+            for (const obj of collisionObjects) { this.resolveX(obj); }
 
             this.onFloor = false;
             this.location.y += this.velocity.y * deltaTime / steps;
-            for (const obj of collisionObjects) {
-                this.resolveY(obj);
-            }
+            for (const obj of collisionObjects) { this.resolveY(obj); }
 
         }
     }
 
     tick(deltaTime, level) {
-
         if (!level.loaded) return;
-        if (this.initialSpawn) {
-            for (const obj of level.objects) {
-                if (obj.type === "SpawnPoint") {
-                    this.location = obj.location
-                }
-            }
-        }
+        if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
 
         this.doInputs(deltaTime);
 
         this.doCollision(deltaTime, level);
 
-        this.faces[0].vertices3d = this.getFaceVertecies("front")
+        this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
 }
