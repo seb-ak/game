@@ -84,14 +84,9 @@ class Level {
                 const location = new vec3(x*this.gridSize, y*this.gridSize, this.z)
                 const adjacent = { up:up, down:down, left:left, right:right, front: false }
                 const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
-                // const colour = this.texture.array[y][x].hex
-                const colour = this.texture.array[y][x].r.toString(16)
-                
-                // if (colour == "7f") continue
-                // if (colour == "c3") continue
-                // dconsole.log(colour)
+                const brightness = this.texture.array[y][x].r / 255
 
-                this.objects.push(new levelTile(location, adjacent, size, colour));
+                this.objects.push(new levelTile(location, adjacent, size, brightness));
             
             }
         }
@@ -123,8 +118,8 @@ class Level {
         
         const toDraw = {
             vertices: [],
-            texture: [],
             distance: [],
+            brightness: [],
             order: [],
         }
         
@@ -136,31 +131,30 @@ class Level {
                 const [
                     face_vertices, 
                     face_distance, 
-                    face_texture
+                    face_brightness
                 ] = face.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z))
                 
                 if (face_vertices == "culled") continue;
                 if (face_distance >= camera.maxQuadDist) continue;
 
                 toDraw.vertices.push(face_vertices)
-                toDraw.texture.push(face_texture)
                 toDraw.distance.push(face_distance)
+                toDraw.brightness.push(face_brightness)
                 toDraw.order.push(toDraw.order.length)
             }
         }
         
         toDraw.order.sort((a, b) => toDraw.distance[toDraw.order.indexOf(b)] - toDraw.distance[toDraw.order.indexOf(a)])
-        // toDraw.order.sort((a, b) => b - a)
         
         for (let i = 0; i < toDraw.order.length; i++) {
             const o = toDraw.order[i]
-            this.drawQuad(ctx, toDraw.vertices[o], toDraw.texture[o], toDraw.distance[o])
+            this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o])
         }
 
         const [
             face_vertices, 
             face_distance, 
-            face_texture
+            face_brightness
         ] = this.mainQuad.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z));
 
         const x = face_vertices[0].x
@@ -197,9 +191,14 @@ class Level {
     btx.drawImage(img, 0, 0);
     */
 
-    drawQuad(ctx, vertices, texture, distance) {
-        function drawSubQuad(ctx, points, colour) {
+    drawQuad(ctx, vertices, brightness, distance) {
+        function drawSubQuad(ctx, points, brightness) {
             
+            // console.log(brightness)
+            const c = (brightness * 255).toString(16).padStart(2, "0");
+            const colour = `#${c}${c}${c}`;
+            // console.log(colour)
+
             ctx.lineWidth = 2;
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
@@ -220,11 +219,12 @@ class Level {
             
         }
         
-        if (texture.length==1) {
-            const colour = `#${texture[0][0]}${texture[0][0]}${texture[0][0]}`;
-            drawSubQuad(ctx, vertices, colour);
+        if (typeof brightness === "number") {
+            drawSubQuad(ctx, vertices, Math.max(0, brightness - distance/10));
             return
         }
+
+        const texture = brightness;
 
         const textureHeight = texture.length;
         const textureWidth = texture[0].length;
@@ -237,9 +237,9 @@ class Level {
         
         function interp(u, v) {
             return  (vertices[0].mult((1-u)*(1-v)))
-            .add(vertices[1].mult(   u *(1-v)))
-            .add(vertices[2].mult(   u *   v ))
-            .add(vertices[3].mult((1-u)*   v ));
+                .add(vertices[1].mult(   u *(1-v)))
+                .add(vertices[2].mult(   u *   v ))
+                .add(vertices[3].mult((1-u)*   v ));
         }
         
 		for (let y=0; y<textureHeight; y++) {
@@ -257,8 +257,8 @@ class Level {
                     interp(u1, v1),
                     interp(u0, v1),
                 ];
-                const colour = `#${texture[y][x]}${texture[y][x]}${texture[y][x]}`;
-				drawSubQuad(ctx, subPoints, colour);
+                const brightness = texture[y][x];
+				drawSubQuad(ctx, subPoints, brightness);
 			}
 		}
 	}
@@ -308,7 +308,7 @@ class Main {
         };
         this.camera = {
             location: new vec3(20,2,-4),
-            fov: 90,
+            fov: 70,
             maxQuadDist: 20
         };
         

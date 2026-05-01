@@ -106,22 +106,22 @@ export class gameObject {
 }
 
 export class levelTile extends gameObject {
-    constructor(location, adjacent={up:false,down:false,left:false,right:false,front:false}, size=new vec3(1,1,1), colour="#ffffffff") {
+    constructor(location, adjacent={up:false,down:false,left:false,right:false,front:false}, size=new vec3(1,1,1), brightness=1) {
         super(location);
 
         this.adjacent = adjacent;
         this.type = "levelTile";
-        this.texture = [colour];
+        this.brightness = brightness;
 
         this.size = size
 
         this.collision = false
         if (adjacent.up && adjacent.down && adjacent.left && adjacent.right) this.collision = false
 
-        if (!this.adjacent.left)  this.faces.push(new Quad(this.getFaceVertecies("left"), this.texture))
-        if (!this.adjacent.right) this.faces.push(new Quad(this.getFaceVertecies("right"), this.texture))
-        if (!this.adjacent.up)    this.faces.push(new Quad(this.getFaceVertecies("up"), this.texture))
-        if (!this.adjacent.down)  this.faces.push(new Quad(this.getFaceVertecies("down"), this.texture))
+        if (!this.adjacent.left)  this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
+        if (!this.adjacent.right) this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
+        if (!this.adjacent.up)    this.faces.push(new Quad(this.getFaceVertecies("up"), this.brightness))
+        if (!this.adjacent.down)  this.faces.push(new Quad(this.getFaceVertecies("down"), this.brightness))
 
     }
 
@@ -145,10 +145,10 @@ export class Player extends gameObject {
 
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
-        this.texture = ["5e","e5","5e","e5","5e"];
+        this.brightness = ["5e","e5","5e","e5","5e"];
         this.ticking = true;
         
-        this.faces.push(new Quad(this.getFaceVertecies("front"),this.texture))
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
 
         this.location.z += this.size.z/2
 

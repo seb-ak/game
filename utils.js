@@ -65,10 +65,10 @@ export class vec3 {
 }
 
 export class Quad {
-    constructor(vertices, texture) {
+    constructor(vertices, brightness) {
         this.vertices3d = vertices
         this.distance = 0
-        this.texture = texture
+        this.brightness = brightness
         this.doCulling = true
     }
 
@@ -88,7 +88,7 @@ export class Quad {
         const center = this.vertices3d[0].add(this.vertices3d[2]).div(2);
         const distance = center.sub(cameraLoc).length();
 
-        return [vertices2d, distance, this.texture]
+        return [vertices2d, distance, this.brightness]
     }
 
     isOnScreen(point, w, h) {
