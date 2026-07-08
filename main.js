@@ -109,11 +109,11 @@ class Level {
         const fovRad = camera.fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
 
-        const res = 20;
+        const resolution = 20; // camera snaps to a grid to reduce jittering of level when slowly
         const cameraLoc = new vec3(
-            Math.floor(camera.location.x*res)/res,
-            Math.floor(camera.location.y*res)/res,
-            Math.floor(camera.location.z*res)/res,
+            Math.floor(camera.location.x*resolution)/resolution,
+            Math.floor(camera.location.y*resolution)/resolution,
+            Math.floor(camera.location.z*resolution)/resolution,
         )
         
         const toDraw = {
@@ -192,10 +192,10 @@ class Level {
     */
 
     drawQuad(ctx, vertices, brightness, distance) {
-        function drawSubQuad(ctx, points, brightness) {
+        function drawSubQuad(ctx, points, subQuadBrightness) {
             
             // console.log(brightness)
-            const c = (brightness * 255).toString(16).padStart(2, "0");
+            const c = Math.floor(subQuadBrightness * 255).toString(16).padStart(2, "0");
             const colour = `#${c}${c}${c}`;
             // console.log(colour)
 
@@ -220,7 +220,8 @@ class Level {
         }
         
         if (typeof brightness === "number") {
-            drawSubQuad(ctx, vertices, Math.max(0, brightness - distance/10));
+            const adjustedBrightness = Math.max(0, brightness - Math.sqrt(distance)/100 - 0.02);
+            drawSubQuad(ctx, vertices, adjustedBrightness);
             return
         }
 
