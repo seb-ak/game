@@ -141,11 +141,11 @@ export class Player extends gameObject {
         super(location)
         this.initialSpawn = true;
         this.spawnPoint = undefined;
-        this.level = "main"
+        this.level = "main";
 
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
-        this.brightness = 0.8
+        this.brightness = 0.8;
         this.ticking = true;
         
         this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
@@ -173,6 +173,12 @@ export class Player extends gameObject {
             }
         });
 
+
+        this.crouchHeight = 0.4;
+        this.baseHeight = 1;
+        this.isCrouching = false;
+        this.isSliding = false;
+
         this.jumpForce = 7;
         this.baseGravity = 0.5;
         this.jumpTime = 0;
@@ -184,15 +190,19 @@ export class Player extends gameObject {
         this.velocity = new vec3(0, 0, 0);
         this.onFloor = false;
 
-        this.acceleration = new vec3(0.1, 0, 0)
-        this.deceleration = new vec3(0.5, 0, 0)
+        this.acceleration = new vec3(0.05, 0, 0)
+        this.deceleration = new vec3(0.1, 0, 0)
         this.maxVel = new vec3(6, Infinity, Infinity)
 
         this.justJumped = false;
         this.lastOnFloor = false;
 
+        this.dashFacingVector = new vec3(0, 0, 0)
         this.canDash = false;
-        this.dashForce = 15;
+        this.dashForce = 10;
+        this.isDashing = false;
+        this.dashTime = 0;
+        this.maxDashTime = 300;
 
         this.facingRotation = 0;
         this.facingVector = new vec3(1,0,0);
@@ -209,17 +219,59 @@ export class Player extends gameObject {
         /////////////////////
         // movement logic //
         ///////////////////
-        const xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
-        const yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
-        
+        let xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
+        let yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
+        const deadzone = 0.2
+        if (Math.abs(xInput) < deadzone) xInput = 0
+        if (Math.abs(yInput) < deadzone) yInput = 0
+
         if(xInput!==0 || yInput!==0) {
             this.facingVector = new vec3(xInput, yInput, 0).normalise()
             this.facingRotation = Math.atan2(yInput, xInput);
         }
+
+        
+        if (yInput < 0 && this.size.y != this.crouchHeight) {
+            this.size.y = this.crouchHeight;
+            
+            const colliding = this.checkCollisions(this.collisionObjects);
+            if (colliding) {
+                this.size.y = this.crouchHeight;
+            } else {
+                this.isCrouching = true;
+                if (Math.abs(this.velocity.x) > 5 && xInput != 0) {
+                    this.velocity.x *= 1.2
+                    this.isSliding = true
+                }
+            }
+        } else if (yInput >= 0 && this.size.y != this.baseHeight) {
+            this.size.y = this.baseHeight;
+            
+            const colliding = this.checkCollisions(this.collisionObjects);
+            if (colliding) {
+                this.size.y = this.crouchHeight;
+            } else {
+                this.isCrouching = false;
+                this.isSliding = false;
+            }
+
+        }
+        if (this.isCrouching && this.isSliding && Math.abs(this.velocity.x) < 1) {
+            this.isSliding = false;
+        }
+
+
         logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
         
         // base acceleration
         let dx = xInput*this.acceleration.x
+        if (this.isDashing) {
+            dx = 0
+        } else if (this.isSliding) {
+            dx *= 0.0
+        } else if (this.isCrouching) {
+            dx *= 0.4
+        }
 
         // if switching direction switch faster
         if (Math.sign(xInput) != Math.sign(this.velocity)) {
@@ -230,24 +282,34 @@ export class Player extends gameObject {
             dx *= 0.6
         }
 
-        if (dx > 0) { if (this.velocity.x + dx > this.maxVel.x) dx = Math.max(0, this.maxVel.x - this.velocity.x) }
-        else if (dx < 0) { if (this.velocity.x + dx < -this.maxVel.x) dx = Math.min(0, -this.maxVel.x - this.velocity.x) }
+        let maxVel = this.maxVel
+        if (this.isCrouching) maxVel = maxVel.mult(0.4)
+
+        if (dx > 0) { if (this.velocity.x + dx > maxVel.x) dx = Math.max(0, maxVel.x - this.velocity.x) }
+        else if (dx < 0) { if (this.velocity.x + dx < -maxVel.x) dx = Math.min(0, -maxVel.x - this.velocity.x) }
         logError(`dx: ${dx.toFixed(3)}`)
         this.velocity.x += dx
 
         // this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
 
+
+        // deceleration 
+        
         // if not moving decelerate
-        if (dx === 0 && this.velocity.x !== 0) {
+        if (dx === 0 && this.velocity.x !== 0 && !this.isDashing) {
             let decelerate = this.deceleration.x
-            if (!this.onFloor) decelerate *= 1.4
+            if (this.isSliding) decelerate *= 0.1
+            else if (!this.onFloor) decelerate *= 1.4
+
             if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
             if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
         }
 
         // if just hit floor decelerate
         if (this.onFloor && !this.lastOnFloor) {
-            let decelerate = this.deceleration.x * 5
+            let decelerate = this.deceleration.x * 2
+            if (this.isSliding) decelerate = -1
+
             if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
             if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
         }
@@ -286,21 +348,36 @@ export class Player extends gameObject {
         // Dash logic //
         ///////////////
 
+        const vec = this.facingVector
+        if (vec.x != 0) {
+            vec.y = 0
+            this.dashFacingVector = vec.normalise()
+        }
+
+        if (this.isDashing) this.dashTime += deltaTime * 1000
+        if (this.dashTime > this.maxDashTime) {
+            this.isDashing = false;
+            this.dashTime = 0;
+        }
+
         if (this.pressedInputs.dash.active) {
 
-            if (this.canDash) {
+            if (this.canDash && !this.isCrouching) {
                 this.canDash = false;
+                this.isDashing = true;
+                this.jumpTime = 0;
+                
+                const dashVector = this.dashFacingVector.mult(this.dashForce)
 
-                // const dashVector = this.facingVector.add(new vec3(0,0.5,0)).normalise().mult(this.dashForce)
-                const dashVector = this.facingVector.mult(this.dashForce)
-
-                this.velocity.x = dashVector.x// * 1.5
+                this.velocity.x = dashVector.x
                 this.velocity.y = dashVector.y
             }
 
         } else if (this.onFloor) {
             this.canDash = true;
         }
+
+        logError(`dashing: ${this.isDashing}`)
         
 
 
@@ -309,11 +386,22 @@ export class Player extends gameObject {
         //////////////////
         let gravity = this.baseGravity
         const threshold = 3;
-        // increase gravity when falling
-        if (!this.onFloor && this.velocity.y < -threshold) {gravity*=1.6; logError("gravity: high");}
-        // decrease gravity at peak of jump
-        else if (!this.onFloor && this.velocity.y < threshold) {gravity*=0.8; logError("gravity: low");}
-        else {gravity = this.baseGravity; logError("gravity: normal")}
+        if (this.isDashing) { // no gravity when dashing
+            gravity = 0;
+            logError("gravity: none");
+        }        
+        else if (!this.onFloor && this.velocity.y < -threshold) { // increase gravity when falling
+            gravity*=1.2;
+            logError("gravity: high");
+        }
+        else if (!this.onFloor && this.velocity.y < threshold) { // decrease gravity at peak of jump
+            gravity*=0.3;
+            logError("gravity: low");
+        }
+        else {
+            gravity = this.baseGravity;
+            logError("gravity: normal")
+        }
 
         this.velocity.y -= gravity
 
@@ -321,7 +409,7 @@ export class Player extends gameObject {
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
     }
     
-    resolveX(obj) {        
+    resolveX(obj) {
         if (!obj.collision) return;
         if (!this.isCollidingWith(obj)) return;
 
@@ -338,7 +426,7 @@ export class Player extends gameObject {
         this.location.x += overlap.x * dir
         this.velocity.x = 0;
     }
-    resolveY(obj) {        
+    resolveY(obj) {
         if (!obj.collision) return;
         if (!this.isCollidingWith(obj)) return;
 
@@ -359,7 +447,7 @@ export class Player extends gameObject {
     doCollision(deltaTime, level) {
         this.onFloor = false;
 
-        const collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
+        this.collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
 
         const steps = Math.ceil(Math.max(
             Math.abs(this.velocity.x * deltaTime) / this.size.x, 
@@ -370,21 +458,29 @@ export class Player extends gameObject {
         for (let i=0; i<steps; i++) {
 
             this.location.x += this.velocity.x * deltaTime / steps;
-            for (const obj of collisionObjects) { this.resolveX(obj); }
+            for (const obj of this.collisionObjects) { this.resolveX(obj); }
 
             this.onFloor = false;
             this.location.y += this.velocity.y * deltaTime / steps;
-            for (const obj of collisionObjects) { this.resolveY(obj); }
+            for (const obj of this.collisionObjects) { this.resolveY(obj); }
 
         }
+    }
+    checkCollisions(objects) {
+        for (const obj of objects) {
+            if (!obj.collision) continue;
+            if (this.isCollidingWith(obj)) return true;
+        }
+        return false;
     }
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
-
+        
+        this.collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
         this.doInputs(deltaTime);
-
+        
         this.doCollision(deltaTime, level);
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");

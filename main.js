@@ -348,15 +348,23 @@ class Main {
         this.player.tick(this.deltaTime, this.level[this.player.level])
 
         // move camera //
-                
+
         const vel = new vec3(
-            this.player.velocity.x / 6,
-            0,//obj.velocity.y / 30,
-            this.player.velocity.z / 6
+            this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
+            0,//this.player.velocity.y / 30,
+            this.player.velocity.z / 30
         )
-        const diff = this.player.location.add(new vec3(0,1.5,0)).add(vel).sub(this.camera.location).div(8).mult(this.deltaTime).mult(60)
+        const diff = this.player.location
+            .add(new vec3(0,1.5,0))
+            .add(vel)
+            .sub(this.camera.location)
+            .div(8)
+            .mult(this.deltaTime*60)
+
         this.camera.location.x += diff.x
         this.camera.location.y += diff.y
+        // this.camera.fov = (this.player.isDashing? 71 : 70)
+        this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
 
         // this.camera.location.x = obj.location.x
         // this.camera.location.y = obj.location.y+1.5
