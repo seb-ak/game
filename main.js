@@ -22,27 +22,17 @@ class Level {
     }
 
     async load() {
-        try {
+        // try {
             this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
             this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
-            const width = this.texture.array[0].length * this.gridSize;
-            const height = this.texture.array.length * this.gridSize;
-            const z = 0
-            this.mainQuad = new Quad([
-                new vec3(0,     0,      z),
-                new vec3(width, 0,      z),
-                new vec3(width, height, z),
-                new vec3(0,     height, z),
-            ]);
-            this.mainQuad.doCulling = false;
 
             this.generateLevel();
 
             this.loaded = true;
 
-        } catch (error) {
-            console.error(`Failed to load level ${this.levelFolder}:`, error);
-        }
+        // } catch (error) {
+        //     console.error(`Failed to load level ${this.levelFolder}:`, error);
+        // }
     }
 
     generateLevel() {
@@ -90,7 +80,25 @@ class Level {
             
             }
         }
-    
+
+        // front face main quad
+        const width = this.texture.array[0].length * this.gridSize;
+        const height = this.texture.array.length * this.gridSize;
+        const adjacent = { up:true, down:true, left:true, right:true, front: false }
+        
+        console.log(typeof this.texture.image)
+
+        this.mainQuad = new levelTile(new vec3(0, 0, 0), adjacent, new vec3(width, height, 0), 1);
+        this.mainQuad.faces.push(
+            new Quad(this.mainQuad.getFaceVertecies("front"),
+                this.texture.image)
+        );
+        
+        this.mainQuad.faces[0].doCulling = false;
+        this.mainQuad.isMainQuad = true;
+
+        this.objects.push(this.mainQuad);
+
     }
     
     tick(deltaTime) {
@@ -128,14 +136,19 @@ class Level {
 
         for (const obj of objects) {
             for (const face of obj.faces) {
-                const [
+                let [
                     face_vertices, 
                     face_distance, 
                     face_brightness
                 ] = face.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z))
                 
-                if (face_vertices == "culled") continue;
-                if (face_distance >= camera.maxQuadDist) continue;
+                if (face.doCulling) {
+                    if (face_vertices == "culled") continue;
+                    if (face_distance >= camera.maxQuadDist) continue;
+                }
+                if (obj.isMainQuad) {
+                    face_distance -= 20
+                }
 
                 toDraw.vertices.push(face_vertices)
                 toDraw.distance.push(face_distance)
@@ -151,18 +164,18 @@ class Level {
             this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o])
         }
 
-        const [
-            face_vertices, 
-            face_distance, 
-            face_brightness
-        ] = this.mainQuad.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z));
+        // const [
+        //     face_vertices, 
+        //     face_distance, 
+        //     face_brightness
+        // ] = this.mainQuad.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z));
 
-        const x = face_vertices[0].x
-        const y = face_vertices[0].y
-        const width = face_vertices[2].x - x
-        const height = face_vertices[2].y - y
+        // const x = face_vertices[0].x
+        // const y = face_vertices[0].y
+        // const width = face_vertices[2].x - x
+        // const height = face_vertices[2].y - y
         
-        ctx.drawImage(this.texture.image, x, y, width, height);
+        // ctx.drawImage(this.texture.image, x, y, width, height);
 
     }
 
@@ -193,7 +206,6 @@ class Level {
 
     drawQuad(ctx, vertices, brightness, distance) {
         function drawSubQuad(ctx, points, subQuadBrightness) {
-            
             // console.log(brightness)
             const c = Math.floor(subQuadBrightness * 255).toString(16).padStart(2, "0");
             const colour = `#${c}${c}${c}`;
@@ -218,50 +230,66 @@ class Level {
             ctx.stroke();
             
         }
-        
-        if (typeof brightness === "number") {
-            const adjustedBrightness = Math.max(0, brightness - Math.sqrt(distance)/100 - 0.02);
+
+        const isTexture = typeof brightness != "number"
+
+        let texture
+
+        if (isTexture) {
+            texture = brightness;
+            brightness = 1;
+        }
+
+        const adjustedBrightness = Math.max(0, brightness - Math.sqrt(distance)/100 - 0.02);
+
+        if (isTexture) {
+            const x = vertices[0].x
+            const y = vertices[0].y
+            const width = vertices[2].x - x
+            const height = vertices[2].y - y
+
+            ctx.drawImage(texture, x, y, width, height);
+        } else {
             drawSubQuad(ctx, vertices, adjustedBrightness);
-            return
         }
 
-        const texture = brightness;
+        // const texture = brightness;
 
-        const textureHeight = texture.length;
-        const textureWidth = texture[0].length;
+        // const textureHeight = texture.length;
+        // const textureWidth = texture[0].length;
         
-        // Bilinear interpolation formula
-        //  P(u, v) = (1-u)(1-v) * P0
-        //            + u(1-v)   * P1
-        //            + u v      * P2
-        //            + (1-u)v   * P3
+        // // Bilinear interpolation formula
+        // //  P(u, v) = (1-u)(1-v) * P0
+        // //            + u(1-v)   * P1
+        // //            + u v      * P2
+        // //            + (1-u)v   * P3
         
-        function interp(u, v) {
-            return  (vertices[0].mult((1-u)*(1-v)))
-                .add(vertices[1].mult(   u *(1-v)))
-                .add(vertices[2].mult(   u *   v ))
-                .add(vertices[3].mult((1-u)*   v ));
-        }
+        // function interp(u, v) {
+        //     return  (vertices[0].mult((1-u)*(1-v)))
+        //         .add(vertices[1].mult(   u *(1-v)))
+        //         .add(vertices[2].mult(   u *   v ))
+        //         .add(vertices[3].mult((1-u)*   v ));
+        // }
         
-		for (let y=0; y<textureHeight; y++) {
-			for (let x=0; x<textureWidth; x++) {
-                if (texture[y][x]===" ") continue
+		// for (let y=0; y<textureHeight; y++) {
+		// 	for (let x=0; x<textureWidth; x++) {
+        //         if (texture[y][x]===" ") continue
 
-                const u0 = x / textureWidth;
-                const v0 = y / textureHeight;
-                const u1 = (x + 1) / textureWidth;
-                const v1 = (y + 1) / textureHeight;
+        //         const u0 = x / textureWidth;
+        //         const v0 = y / textureHeight;
+        //         const u1 = (x + 1) / textureWidth;
+        //         const v1 = (y + 1) / textureHeight;
                 
-                const subPoints = [
-                    interp(u0, v0),
-                    interp(u1, v0),
-                    interp(u1, v1),
-                    interp(u0, v1),
-                ];
-                const brightness = texture[y][x];
-				drawSubQuad(ctx, subPoints, brightness);
-			}
-		}
+        //         const subPoints = [
+        //             interp(u0, v0),
+        //             interp(u1, v0),
+        //             interp(u1, v1),
+        //             interp(u0, v1),
+        //         ];
+        //         const brightness = texture[y][x];
+		// 		drawSubQuad(ctx, subPoints, brightness);
+		// 	}
+		// }
 	}
 
     getCloseTo(obj) {
@@ -390,7 +418,6 @@ class Main {
             this.level["main"].draw(this.ctx, this.camera, this.screen, this.player.level=="main"? this.player : undefined);
         }
         
-
         
         this.drawUi();
         

@@ -179,7 +179,7 @@ export class Player extends gameObject {
         this.isCrouching = false;
         this.isSliding = false;
 
-        this.jumpForce = 7;
+        this.jumpForce = 11;
         this.baseGravity = 0.5;
         this.jumpTime = 0;
         this.maxJumpTime = 170;
