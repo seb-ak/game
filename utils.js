@@ -75,8 +75,13 @@ export class Quad {
     project2d(f, w, h, cameraLoc, offset) {
         let cullFace = true;
         const vertices2d = [];
-        for (const point of this.vertices3d) {
-            const translatedPoint = point.sub(cameraLoc).sub(offset);
+
+        const translatedVertices3d = this.vertices3d.map((point) => {return point.sub(cameraLoc).sub(offset);})
+        // console.log(this.vertices3d, translatedVertices3d)
+        // for (const point of this.vertices3d) {
+        //     const translatedPoint = point.sub(cameraLoc).sub(offset);
+        
+        for (const translatedPoint of translatedVertices3d) {
             const projectedPoint = this.projectPoint(translatedPoint, f, w, h);
 
             vertices2d.push(projectedPoint)
@@ -85,8 +90,11 @@ export class Quad {
         }
         if (cullFace && this.doCulling) return ["culled","culled","culled"]
         
-        const center = this.vertices3d[0].add(this.vertices3d[2]).div(2);
-        const distance = center.sub(cameraLoc).length();
+        const center = translatedVertices3d[0].add(translatedVertices3d[2]).div(2);
+        let distance = center.length();
+        if (this.isMainQuad) {
+            distance = center.z
+        }
 
         return [vertices2d, distance, this.brightness]
     }

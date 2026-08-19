@@ -230,7 +230,13 @@ export class Player extends gameObject {
             this.facingRotation = Math.atan2(yInput, xInput);
         }
 
+
+        // press crouch when in air all velocity transferred to down and ground slam
         
+
+
+
+        // crouch and sliding
         if (yInput < 0 && this.size.y != this.crouchHeight) {
             this.size.y = this.crouchHeight;
             
@@ -239,7 +245,7 @@ export class Player extends gameObject {
                 this.size.y = this.crouchHeight;
             } else {
                 this.isCrouching = true;
-                if (Math.abs(this.velocity.x) > 5 && xInput != 0) {
+                if (Math.abs(this.velocity.x) > this.maxVel.x && xInput != 0) {
                     this.velocity.x *= 1.2
                     this.isSliding = true
                 }

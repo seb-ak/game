@@ -14,8 +14,9 @@ class Level {
         
         this.loaded = false;
         this.texture = undefined;
-        
         this.collision = undefined;
+
+        this.tempScaledTextures = new Map();
         
         this.load();
 
@@ -95,6 +96,7 @@ class Level {
         );
         
         this.mainQuad.faces[0].doCulling = false;
+        this.mainQuad.faces[0].isMainQuad = true;
         this.mainQuad.isMainQuad = true;
 
         this.objects.push(this.mainQuad);
@@ -118,11 +120,12 @@ class Level {
         const f = w / (2 * Math.tan(fovRad/2));
 
         const resolution = 20; // camera snaps to a grid to reduce jittering of level when slowly
-        const cameraLoc = new vec3(
-            Math.floor(camera.location.x*resolution)/resolution,
-            Math.floor(camera.location.y*resolution)/resolution,
-            Math.floor(camera.location.z*resolution)/resolution,
-        )
+        // const cameraLoc = new vec3(
+        //     Math.floor(camera.location.x*resolution)/resolution,
+        //     Math.floor(camera.location.y*resolution)/resolution,
+        //     Math.floor(camera.location.z*resolution)/resolution,
+        // )
+        const cameraLoc = camera.location
         
         const toDraw = {
             vertices: [],
@@ -146,9 +149,10 @@ class Level {
                     if (face_vertices == "culled") continue;
                     if (face_distance >= camera.maxQuadDist) continue;
                 }
-                if (obj.isMainQuad) {
-                    face_distance -= 20
-                }
+                // if (obj.isMainQuad) {
+                //     face_distance -= 20
+                // }
+                face_distance = Math.max(0, face_distance)
 
                 toDraw.vertices.push(face_vertices)
                 toDraw.distance.push(face_distance)
@@ -207,8 +211,8 @@ class Level {
     drawQuad(ctx, vertices, brightness, distance) {
         function drawSubQuad(ctx, points, subQuadBrightness) {
             // console.log(brightness)
-            const c = Math.floor(subQuadBrightness * 255).toString(16).padStart(2, "0");
-            const colour = `#${c}${c}${c}`;
+            const c = Math.floor(subQuadBrightness * 255);
+            const colour = `rgb(${c}, ${c}, ${c})`;
             // console.log(colour)
 
             ctx.lineWidth = 2;
@@ -240,15 +244,46 @@ class Level {
             brightness = 1;
         }
 
-        const adjustedBrightness = Math.max(0, brightness - Math.sqrt(distance)/100 - 0.02);
+        // let adjustedBrightness = brightness - Math.sqrt(distance)/100 - 0.02;
+        let adjustedBrightness = brightness - distance/40
+        adjustedBrightness = Math.min(1, Math.max(0, adjustedBrightness));
 
         if (isTexture) {
-            const x = vertices[0].x
-            const y = vertices[0].y
-            const width = vertices[2].x - x
-            const height = vertices[2].y - y
+            const x = Math.floor(vertices[0].x)
+            const y = Math.floor(vertices[0].y)
+            const width = Math.floor(vertices[2].x - x)
+            const height = Math.floor(vertices[2].y - y)
 
-            ctx.drawImage(texture, x, y, width, height);
+            const key = `${texture.src} ${width} ${height} ${adjustedBrightness}`;
+
+            const temp = this.tempScaledTextures.get(key);
+
+            // logError(`quad dist: ${distance}`)
+            // logError(`quad brightens: ${adjustedBrightness}`)
+
+            if (temp) {
+
+                ctx.drawImage(temp, x, y);
+
+            } else {
+                
+                logError("new scaled texture")
+
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const tempCtx = canvas.getContext("2d");
+                tempCtx.imageSmoothingEnabled = false;
+                tempCtx.drawImage(texture, 0, 0, width, height);
+                tempCtx.fillStyle = `rgba(0, 0, 0, ${1 - adjustedBrightness})`;
+                tempCtx.fillRect(0, 0, width, height);
+
+                this.tempScaledTextures.set(key, canvas);
+        
+                ctx.drawImage(canvas, x, y);
+
+            }
+
         } else {
             drawSubQuad(ctx, vertices, adjustedBrightness);
         }
@@ -343,7 +378,7 @@ class Main {
         
         this.level = {
             main: new Level("test1", 0),
-            second: new Level("test1", -25),
+            second: new Level("test1", -15),
         };
         this.player = new Player(new vec3(0,0,0))
 
@@ -364,7 +399,7 @@ class Main {
             this.lastTime = currentTime
     
             this.frames++;
-            if (this.nextSecond > currentTime) {
+            if (this.nextSecond <= currentTime) {
                 this.fps = this.frames
                 this.nextSecond = currentTime + 1000;
                 this.frames = 0;
