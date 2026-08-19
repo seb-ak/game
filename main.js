@@ -367,8 +367,8 @@ class Main {
         this.ctx.imageSmoothingEnabled = false;
         
         this.screen = {
-            width: 192,
-            height: 144,
+            width: 192*2,
+            height: 144*2,
         };
         this.camera = {
             location: new vec3(20,2,-4),
