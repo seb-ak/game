@@ -244,8 +244,8 @@ class Level {
             brightness = 1;
         }
 
-        // let adjustedBrightness = brightness - Math.sqrt(distance)/100 - 0.02;
-        let adjustedBrightness = brightness - distance/40
+        // let adjustedBrightness = brightness - (distance*distance)/1000;
+        let adjustedBrightness = brightness - distance/20 + 0.3
         adjustedBrightness = Math.min(1, Math.max(0, adjustedBrightness));
 
         if (isTexture) {
@@ -442,8 +442,8 @@ class Main {
     }
 
     draw() {
-        const bgColour = "1"
-        this.ctx.fillStyle = `#${bgColour}${bgColour}${bgColour}`
+        this.ctx.fillStyle = `#111`
+        this.ctx.fillStyle = `#000`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
         if (this.level["second"] && this.level["second"].loaded) {
