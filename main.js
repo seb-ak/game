@@ -435,6 +435,7 @@ class Main {
         
         this.draw();
         
+        this.dither();
         
         requestAnimationFrame(this.update.bind(this));
     // } catch (e) {logError(e);}
@@ -457,6 +458,72 @@ class Main {
         this.drawUi();
         
     }
+
+    dither() {
+        
+        const dark  = {r:5, g:28, b:12} // #051c0c (Dark Forest Green) 
+        const light = {r:51, g:255, b:102}// #33ff66 (Terminal Green)
+
+        // const dark  = {r:43, g:27, b:61}// #2b1b3d (Plum Purple) 
+        // const light = {r:246, g:240, b:207}// #f6f0cf (Butter Yellow)
+
+        // const dark  = {r:18, g:12, b:0} // #120c00 (Deep Brown-Black)
+        // const light = {r:255, g:176, b:0} // #ffb000 (Classic Amber)
+
+        // const dark = {r:15, g:26, b:44} // #0f1a2c (Dark Navy)
+        // const light = {r:238, g:242, b:247} // #eef2f7 (Ice White)
+
+        const width = this.screen.width
+        const height = this.screen.height
+
+        // const size = 2
+        // const f = 1/size/size
+        // const m = [
+        //     [f*0,f*2],
+        //     [f*3,f*1]
+        // ]
+
+        // https://en.wikipedia.org/wiki/Ordered_dithering
+        // https://github.com/tromero/BayerMatrix
+
+        // # Bayer Matrix 8
+        const size = 8;
+        const f = 1/size/size
+        const m = [
+            [f*0, f*32, f*8, f*40, f*2, f*34, f*10, f*42],
+            [f*48, f*16, f*56, f*24, f*50, f*18, f*58, f*26],
+            [f*12, f*44, f*4, f*36, f*14, f*46, f*6, f*38],
+            [f*60, f*28, f*52, f*20, f*62, f*30, f*54, f*22],
+            [f*3, f*35, f*11, f*43, f*1, f*33, f*9, f*41],
+            [f*51, f*19, f*59, f*27, f*49, f*17, f*57, f*25], 
+            [f*15, f*47, f*7, f*39, f*13, f*45, f*5, f*37],
+            [f*63, f*31, f*55, f*23, f*61, f*29, f*53, f*21]
+        ]
+        
+        
+        const imageData = this.ctx.getImageData(0, 0, width, height);
+        let i = 0;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+
+                const brightness = imageData.data[i]
+                i += 4;
+
+                const d = m[y%size][x%size]
+
+                imageData.data[i - 4] = d * 255 > brightness ? dark.r : light.r //r
+                imageData.data[i - 3] = d * 255 > brightness ? dark.g : light.g //g
+                imageData.data[i - 2] = d * 255 > brightness ? dark.b : light.b //b
+                // imageData[i+3] //a
+
+            }
+        }
+
+        this.ctx.putImageData(imageData, 0, 0);
+
+    }
+
 
     drawUi() {}
 
