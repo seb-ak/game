@@ -353,6 +353,8 @@ class Level {
 
 class Main {
     constructor() {
+        this.loaded = false;
+
         this.deltaTime = 1
         this.lastTime = 0
         this.fps = 0
@@ -360,7 +362,7 @@ class Main {
         this.frames = 0;
         this.nextSecond = 0;
         
-        this.frameRateCap = 5;
+        this.limitFps = false;
 
         this.canvas = document.getElementById("gameCanvas");
         this.ctx = this.canvas.getContext("2d");
@@ -384,12 +386,35 @@ class Main {
 
         this.levelLayer = "main"
 
+        this.loadTextures();
 
         requestAnimationFrame(this.update.bind(this));
 
     }
 
+    async loadTextures() {
+        const texture = await loadImage(`./textures/vignette3.png`);
+        this.vignette = texture.image;
+
+        this.loaded = true;
+    }
+
     update(currentTime) {
+
+        
+        if (!this.loaded) {
+            requestAnimationFrame(this.update.bind(this));
+            return;
+        }
+
+        if (this.limitFps) {
+            this.limitFpsFrame = !this.limitFpsFrame
+            if (this.limitFpsFrame) {
+                requestAnimationFrame(this.update.bind(this));
+                return;
+            }
+        }
+
         clearLog()
         
         {
@@ -435,14 +460,13 @@ class Main {
         
         this.draw();
         
-        this.dither();
         
         requestAnimationFrame(this.update.bind(this));
     // } catch (e) {logError(e);}
     }
 
     draw() {
-        this.ctx.fillStyle = `#111`
+        // this.ctx.fillStyle = `#111`
         this.ctx.fillStyle = `#000`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
@@ -454,9 +478,19 @@ class Main {
             this.level["main"].draw(this.ctx, this.camera, this.screen, this.player.level=="main"? this.player : undefined);
         }
         
+        // vignette
+        this.ctx.globalAlpha = 0.4;
+        this.ctx.drawImage(this.vignette, 0, 0)
+        this.ctx.globalAlpha = 1;
+        
+        // add subtle spherical gradient around player to simulate light around them
         
         this.drawUi();
         
+        if (!this.player.pressedInputs.down.active) {
+            this.dither();
+        }
+
     }
 
     dither() {
@@ -510,7 +544,7 @@ class Main {
                 const brightness = imageData.data[i]
                 i += 4;
 
-                const d = m[y%size][x%size]
+                const d = m[(y+4)%size][(x+4)%size]
 
                 imageData.data[i - 4] = d * 255 > brightness ? dark.r : light.r //r
                 imageData.data[i - 3] = d * 255 > brightness ? dark.g : light.g //g

@@ -303,7 +303,7 @@ export class Player extends gameObject {
         
         // if not moving decelerate
         if (dx === 0 && this.velocity.x !== 0 && !this.isDashing) {
-            let decelerate = this.deceleration.x
+            let decelerate = this.deceleration.x * deltaTime * 144
             if (this.isSliding) decelerate *= 0.1
             else if (!this.onFloor) decelerate *= 1.4
 
@@ -409,7 +409,7 @@ export class Player extends gameObject {
             logError("gravity: normal")
         }
 
-        this.velocity.y -= gravity
+        this.velocity.y -= gravity * deltaTime * 144
 
         logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
