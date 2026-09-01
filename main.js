@@ -366,7 +366,8 @@ class Main {
         this.limitFps = false;
 
         this.canvas = document.getElementById("gameCanvas");
-        this.ctx = this.canvas.getContext("2d");
+        // this.ctx = this.canvas.getContext("2d");
+        this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
         this.ctx.imageSmoothingEnabled = false;
         
         this.screen = {
@@ -487,7 +488,7 @@ class Main {
         this.ctx.globalAlpha = 1;
         
         // user interface
-        this.ui.draw();
+        this.ui.draw(this.ctx);
         
         if (!this.player.pressedInputs.down.active) {
             this.dither();
