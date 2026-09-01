@@ -1,5 +1,6 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
 import { gameObject, levelTile, SpawnPoint, Player } from "./gameObjects.js";
+import { UiController } from "./ui.js"
 
 class Level {
     constructor(levelFolder, z) {
@@ -388,6 +389,8 @@ class Main {
 
         this.loadTextures();
 
+        this.ui = new UiController();
+
         requestAnimationFrame(this.update.bind(this));
 
     }
@@ -457,9 +460,9 @@ class Main {
         // this.camera.location.x = obj.location.x
         // this.camera.location.y = obj.location.y+1.5
 
+        this.ui.tick()
         
         this.draw();
-        
         
         requestAnimationFrame(this.update.bind(this));
     // } catch (e) {logError(e);}
@@ -483,9 +486,8 @@ class Main {
         this.ctx.drawImage(this.vignette, 0, 0)
         this.ctx.globalAlpha = 1;
         
-        // add subtle spherical gradient around player to simulate light around them
-        
-        this.drawUi();
+        // user interface
+        this.ui.draw();
         
         if (!this.player.pressedInputs.down.active) {
             this.dither();
@@ -557,9 +559,6 @@ class Main {
         this.ctx.putImageData(imageData, 0, 0);
 
     }
-
-
-    drawUi() {}
 
 }
 

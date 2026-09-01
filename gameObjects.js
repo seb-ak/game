@@ -136,6 +136,10 @@ export class SpawnPoint extends gameObject {
     }
 }
 
+
+// cant slide while dashing
+// dash has less force when on floor
+// attacks are ground slam and slide kick
 export class Player extends gameObject {
     constructor(location) {
         super(location)
