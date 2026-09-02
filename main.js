@@ -88,7 +88,7 @@ class Level {
         const height = this.texture.array.length * this.gridSize;
         const adjacent = { up:true, down:true, left:true, right:true, front: false }
         
-        console.log(typeof this.texture.image)
+        // console.log(typeof this.texture.image)
 
         this.mainQuad = new levelTile(new vec3(0, 0, 0), adjacent, new vec3(width, height, 0), 1);
         this.mainQuad.faces.push(

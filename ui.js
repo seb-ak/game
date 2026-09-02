@@ -8,21 +8,57 @@ export class UiController {
 
         this.screens = []
 
-        this.createScreens()
+        this.createScreens();
+
+
+        this.mouse = {
+            x: 0,
+            y: 0,
+            down: false
+        }
+
+
+
+
+        const gameWindow = document.getElementById("gameCanvas");
+
+        gameWindow.addEventListener("mousemove", (event) => { this.mouseMove(event) });
+        gameWindow.addEventListener("mouseenter", (event) => { this.mouseMove(event) });
+        gameWindow.addEventListener("mouseleave", (event) => { this.mouseMove(event); this.mouseUp(event); });
+
+        gameWindow.addEventListener("mousedown", (event) => { this.mouseDown(event); });
+        gameWindow.addEventListener("mouseup", (event) => { this.mouseUp(event); });
 
     }
 
+    mouseMove(event) {
+        this.mouse.x = event.offsetX;
+        this.mouse.y = event.offsetY;
+    }
+
+    mouseDown(event) { this.mouse.down = true; this.mouse.isFirstEvent = true; }
+
+    mouseUp(event) { this.mouse.down = false; this.mouse.isFirstEvent = false; }
+
+
     createScreens() {
 
-        // main menu
+        // define screens
         const mainMenuScreen = new UiScreen("Main Menu"); this.screens.push(mainMenuScreen);
+        const settingsScreen = new UiScreen("Settings"); this.screens.push(settingsScreen);
 
+
+        // main menu
         const gameTitle = new UiElement(mainMenuScreen, "Game Name", 3,0, 6,1);
 
-
         const startGameButton = new UiButton(mainMenuScreen, "Start Game", 1,2, 6,1);
+
         const settingsButton = new UiButton(mainMenuScreen, "Settings", 1,4, 6,1);
+        settingsButton.action = () => { this.activeScreen = settingsScreen; }
+
         const exitButton = new UiButton(mainMenuScreen, "Exit", 1,6, 6,1);
+        exitButton.action = () => { close(); }
+
 
         startGameButton.nextElement.down = settingsButton
 
@@ -33,21 +69,23 @@ export class UiController {
 
 
         // settings menu
-        const settingsScreen = new UiScreen("Settings");
 
-        const mainMenuButton = new UiButton(settingsScreen, 1,2, 1,3);
+        const mainMenuButton = new UiButton(settingsScreen, "Main Menu", 1,2, 6,10);
+        mainMenuButton.action = () => { this.activeScreen = mainMenuScreen; }
 
 
         // pause menu
         const pauseMenuScreen = new UiScreen("Pause Menu");
 
-        const resumeButton = new UiButton(pauseMenuScreen);
+        const resumeButton = new UiButton(pauseMenuScreen, "Resume", 1,2, 1,3);
 
 
         this.activeScreen = mainMenuScreen
     }
 
     tick() {
+
+        this.activeScreen.tick(this.mouse);
 
     }
 
@@ -77,8 +115,50 @@ class UiScreen {
         }
     }
 
-    tick() {
- 
+    getElement(x, y) {
+
+        x = Math.floor(x / this.gridSize);
+        y = Math.floor(y / this.gridSize);
+
+        const hovered = [];
+
+        for (const e of this.elements) {
+            if (x >= e.x &&
+                x < e.x + e.width &&
+                y >= e.y &&
+                y < e.y + e.height
+            ) {
+                hovered.push(e)
+            }
+        }
+
+        return hovered;
+
+    }
+
+    tick(mouse) {
+
+        const hovered = this.getElement(mouse.x, mouse.y)
+        if (hovered.length === 0) mouse.isFirstEvent = false;
+
+        for (const e of this.elements) {
+            if (hovered.includes(e)) {
+                e.hovered = true;
+                if (mouse.down && mouse.isFirstEvent) e.selected = true;
+                if (e.selected && !mouse.down) {
+                    if (e.action != undefined) e.action();
+                    mouse.isFirstEvent = false;
+                    e.hovered = false;
+                    e.selected = false;
+                }
+            }
+            else {
+                e.hovered = false;
+                e.selected = false;
+            }
+        }
+
+
     }
 
 }
@@ -87,7 +167,7 @@ class UiElement {
 
     constructor(parent, text, x, y, width, height) {
         
-        parent.elements.push(this)
+        parent.elements.push(this);
 
         this.text = text;
 
@@ -99,7 +179,9 @@ class UiElement {
         this.hovered = false;
         this.selected = false;
 
-        this.type = "none"
+        this.action = undefined;
+
+        this.type = "none";
 
         this.nextElement = {
             up: undefined,
@@ -108,14 +190,12 @@ class UiElement {
             right: undefined
         }
 
-        this.action = undefined
-
-        this.text = ""
+        this.action = undefined;
 
         this.borderWidth = 2;
-        this.borderBrightness = 0.5;
+        this.borderBrightness = 0;
 
-        this.backgroundBrightness = 0.2;
+        this.backgroundBrightness = 0;
 
         this.textSize = 1.0;
         this.textBrightness = 1.0;
@@ -126,10 +206,13 @@ class UiElement {
 
     draw(ctx, gridSize) {
 
-        const borderWidth = this.borderWidth
+        const borderWidth = this.borderWidth 
+            * ((this.selected && this.type != "none") ? 2 : 1) 
+            * ((this.hovered && this.type != "none") ? 2 : 1);
         const borderBrightness = this.borderBrightness;
         
-        const backgroundBrightness = this.backgroundBrightness;
+        const backgroundBrightness = this.backgroundBrightness 
+            * ((this.hovered && this.type != "none") ? 2 : 1);
 
         const textSize = this.textSize;
         const textBrightness = this.textBrightness;
@@ -152,11 +235,13 @@ class UiElement {
         ctx.fillStyle = backgroundColor;
 
         ctx.fillRect(x, y, width, height);
-        ctx.strokeRect(x+Math.floor(borderWidth/2), y+Math.floor(borderWidth/2), width-borderWidth, height-borderWidth);
+        if (borderWidth > 0) {
+            ctx.strokeRect(x+Math.floor(borderWidth/2), y+Math.floor(borderWidth/2), width-borderWidth, height-borderWidth);
+        }
 
         ctx.font = `${textSize * gridSize}px Arial`;
         ctx.fillStyle = textColor;
-        ctx.fillText(this.text, x, y + textSize * gridSize);
+        ctx.fillText(this.text, x + borderWidth*2, y + textSize * gridSize - borderWidth*2);
 
     }
 
@@ -168,6 +253,14 @@ class UiButton extends UiElement {
         super(parent, text, x, y, width, height)
 
         this.type = "button"
+        
+        this.borderWidth = 2;
+        this.borderBrightness = 0.5;
+
+        this.backgroundBrightness = 0.05;
+
+        this.textSize = 1.0;
+        this.textBrightness = 1.0;
     }
 
 }
